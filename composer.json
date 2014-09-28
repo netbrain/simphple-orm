@@ -1,0 +1,20 @@
+{
+    "name": "netbrain/simphple-orm",
+    "description": "An object relational mapping framework for php mysqli",
+    "license": "GPLv3",
+    "autoload": {
+        "psr-4": { "SimphpleOrm\\": "src/" }
+    },
+    "autoload-dev": {
+        "psr-4": { "SimphpleOrm\\": "tests/" }
+    },
+    "authors": [
+        {
+            "name": "Kim Eik",
+            "email": "kim@heldig.org"
+        }
+    ],
+    "require": {
+        "apache/log4php": "~2.3"
+    }
+}
