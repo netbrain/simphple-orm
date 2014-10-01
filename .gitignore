@@ -3,4 +3,4 @@
 ./composer.lock
 ./phpunit.phar
 ./config.ini
-./.idea/
+.idea/
