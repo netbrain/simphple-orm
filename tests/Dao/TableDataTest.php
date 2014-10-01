@@ -8,7 +8,7 @@ use SimphpleOrm\Test\AnnotatedTestDao;
 use SimphpleOrm\Test\NotAnnotatedTest;
 use SimphpleOrm\Test\NotAnnotatedTestDao;
 
-class TableDataBuilderTest extends DaoTestFramework {
+class TableDataBuilderTest extends DaoTestCase {
 
     /**
      * @var AnnotatedTestDao

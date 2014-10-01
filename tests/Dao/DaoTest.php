@@ -8,7 +8,7 @@ use SimphpleOrm\Test\AnnotatedTestDao;
 use SimphpleOrm\Test\ChildTest;
 use SimphpleOrm\Test\ChildTestDao;
 
-class DaoTest extends DaoTestFramework {
+class DaoTest extends DaoTestCase {
     /**
      * @var AnnotatedTestDao
      */

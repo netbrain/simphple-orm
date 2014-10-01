@@ -7,7 +7,7 @@ use Logger;
 use mysqli;
 use SimphpleOrm\Config\Config;
 
-abstract class DaoTestFramework extends \PHPUnit_Framework_TestCase {
+abstract class DaoTestCase extends \PHPUnit_Framework_TestCase {
 
     /**
      * @var Logger
