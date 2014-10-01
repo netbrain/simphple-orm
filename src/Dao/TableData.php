@@ -91,7 +91,7 @@ class TableData {
     private function getFieldsDefinitionSQL() {
         $this->sortFields();
         $propertiesSql = array();
-        foreach ($this->fields as $field) {
+        foreach ($this->getLocalFields() as $field) {
             $propertiesSql[] = $this->getFieldDefinitionSQL($field);
         }
         return join(', ', $propertiesSql);
@@ -153,23 +153,22 @@ class TableData {
     }
 
     public function  getFindSQL($id) {
-        $id = $this->getSQLFormattedID($id);
-        $fields = $this->getSQLFields($this->getFields());
+        $id = $this->getSQLFormattedValue($id);
+        $fields = $this->getSQLFields($this->getLocalFields());
         $query = sprintf('SELECT %s FROM %s WHERE %s = %s LIMIT 1',
             $fields, $this->getName(), $this->getPrimaryKey()->getFieldName(), $id);
         return $query;
     }
 
     /**
-     * @param $id
+     * @param $value
      * @return string
      */
-    private function getSQLFormattedID($id) {
-        if (!$this->getPrimaryKey()->isNumericType()) {
-            $id = "'$id'";
-            return $id;
+    private function getSQLFormattedValue($value) {
+        if(is_string($value)){
+            $value = "'$value'";
         }
-        return $id;
+        return $value;
     }
 
     /**
@@ -195,6 +194,9 @@ class TableData {
      */
     protected function getSQLFormattedFieldNames($fields) {
         $fields = array_filter($fields);
+        /**
+         * @var $field TableField
+         */
         foreach ($fields as $key => $field) {
             $fields[$key] = $this->getSQLFormattedFieldName($field);
         }
@@ -217,6 +219,19 @@ class TableData {
         return $this->fields;
     }
 
+    /**
+     * Get fields local to this table
+     * not one-to-many assosciations
+     */
+    public function getLocalFields(){
+        return array_filter($this->getFields(),function($field){
+            /**
+             * @var $field TableField
+             */
+            return !$field->isOneToMany();
+        });
+    }
+
     function __toString() {
         return $this->getName();
     }
@@ -236,6 +251,19 @@ class TableData {
     /**
      * @return TableField[]
      */
+    public function getFieldsWithOneToManyRelationship() {
+        return array_filter($this->getFields(), function ($field) {
+            /**
+             * @var $field TableField
+             */
+            return $field->isOneToMany();
+        });
+    }
+
+
+    /**
+     * @return TableField[]
+     */
     public function getPrimitiveFields() {
         return array_filter($this->getFields(), function ($field) {
             /**
@@ -246,7 +274,7 @@ class TableData {
     }
 
     public function getCreateSQL($obj) {
-        $fields = $this->getFields();
+        $fields = $this->getLocalFields();
 
         $sqlFields = $this->getSQLFields($fields);
         $fieldValues = array();
@@ -281,11 +309,19 @@ class TableData {
             }
             return $field->getDefault();
         } else {
-            $property = $this->reflectedEntity->getProperty($field->getPropertyName());
-            $property->setAccessible(true);
-            $value = $property->getValue($obj);
-            $property->setAccessible(false);
-            return $value;
+            if($this->reflectedEntity !== null){
+                $property = $this->reflectedEntity->getProperty($field->getPropertyName());
+                $property->setAccessible(true);
+                $value = $property->getValue($obj);
+                $property->setAccessible(false);
+                return $value;
+            }else{
+                if (property_exists($obj, $field->getPropertyName())) {
+                    return $obj->{$field->getPropertyName()};
+                }else{
+                    return null;
+                }
+            }
         }
     }
 
@@ -317,11 +353,9 @@ class TableData {
         }
 
         if ($field->isReference()) {
-            if (is_array($value)) {
-                //FIXME
-                return 'NULL';
+            if(is_object($value)){
+                return $field->getReference()->getId($value);
             }
-            return $field->getReference()->getId($value);
         }
 
         if (is_bool($value)) {
@@ -352,7 +386,7 @@ class TableData {
             $obj = $obj->getDelegate();
         }
 
-        $fields = $this->getFields();
+        $fields = $this->getLocalFields();
         $idName = $idValue = null;
         $fieldValues = array();
         $oldVersion = null;
@@ -426,14 +460,33 @@ class TableData {
     }
 
     /**
+     * Returns true if this table is bound to an entity.
+     * false if not.
+     *
+     * Usually this means this table does not represent a single entity.
+     * Fx. a join table.
+     * @return bool
+     */
+    public function isBoundToEntity(){
+       return $this->reflectedEntity !== null;
+    }
+
+    /**
      * @return object
      */
     public function getEntityInstance() {
         return $this->reflectedEntity->newInstanceWithoutConstructor();
     }
 
+    /**
+     * @return string
+     */
+    public function getEntityClassName() {
+        return $this->reflectedEntity->getName();
+    }
+
     public function getVersionSQL($id) {
-        $id = $this->getSQLFormattedID($id);
+        $id = $this->getSQLFormattedValue($id);
         return sprintf("SELECT %s FROM %s WHERE %s = %s LIMIT 1", $this->getVersionField()->getFieldName(), $this->getName(), $this->getPrimaryKey()->getFieldName(), $id);
 
     }
@@ -451,7 +504,7 @@ class TableData {
     }
 
     public function getDeleteSQL($obj) {
-        $id = $this->getSQLFormattedID($this->getId($obj));
+        $id = $this->getSQLFormattedValue($this->getId($obj));
         return sprintf("DELETE FROM %s WHERE %s = %s AND %s = %s",
             $this->getName(), $this->getPrimaryKey()->getFieldName(),
             $id,
@@ -460,9 +513,25 @@ class TableData {
 
     }
 
+    /**
+     * @param $joinField TableField
+     * @param $id mixed
+     * @return string
+     */
+    public function getJoinSql($joinField, $id) {
+        $id = $this->getSQLFormattedValue($id);
+        $fields = [];
+        foreach($this->getFieldsWithReference() as $field){
+            if($field !== $joinField){
+                $fields[] = $field;
+            }
+        }
+        $fields = $this->getSQLFields($fields);
+        return sprintf("SELECT %s FROM %s WHERE %s = %s ",$fields, $this->getName(), $joinField->getFieldName(), $id);
+    }
+
     private function getVersion($obj) {
         return $this->getPropertyValue($obj,$this->getVersionField());
     }
-
 
 }

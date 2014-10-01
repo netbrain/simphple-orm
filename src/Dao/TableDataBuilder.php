@@ -194,36 +194,37 @@ class TableDataBuilder {
         }
 
         $otherTable = TableDataBuilder::build($type);
-
-        $joinTable = new TableData($property->getDeclaringClass());
+        $joinTable = new TableData(null);
         $joinTable->setName($tableData->getName() . '_' . $otherTable->getName());
         $joinTable->addField(new TableField($joinTable->getName(), $property->getName(), 'INT',
             TableField::PRIMARY |
             TableField::AUTO_INCREMENT |
             TableField::NOT_NULL));
+        /**
+         * @var $table TableData
+         */
+        foreach(array($tableData,$otherTable) as $table) {
+            $idField = clone $table->getPrimaryKey();
+            $idField->setFieldName($table->getName().'_'.$idField->getFieldName());
+            $idField->setPropertyName($idField->getFieldName());
 
-        $tableFieldId = clone $tableData->getPrimaryKey();
-        $otherFieldId = clone $otherTable->getPrimaryKey();
-
-        $tableFieldId->setFieldName($tableData->getName() . '_' . $tableFieldId->getFieldName());
-        $otherFieldId->setFieldName($otherTable->getName() . '_' . $otherFieldId->getFieldName());
-
-        $tableFieldId->removeFlag(TableField::PRIMARY | TableField::AUTO_INCREMENT);
-        $otherFieldId->removeFlag(TableField::PRIMARY | TableField::AUTO_INCREMENT);
-
-        $joinTable->addField($tableFieldId);
-        $joinTable->addField($otherFieldId);
+            foreach (array(TableField::AUTO_INCREMENT, TableField::PRIMARY) as $flag) {
+                $idField->removeFlag($flag);
+            }
+            $idField->addFlag(TableField::NOT_NULL);
+            $idField->setReference($table);
+            $joinTable->addField($idField);
+        }
 
         $fieldName = self::getFieldName($property, $propertyAnnotations);
         $propertyName = $property->getName();
-        $type = $otherFieldId->getType();
         $flags = 0;
 
         if (self::isPropertyNotNull($propertyAnnotations)) {
             $flags |= TableField::NOT_NULL;
         }
 
-        $tableFieldId = new TableField($fieldName, $propertyName, $type, $flags, null, $joinTable);
+        $tableFieldId = new TableField($fieldName, $propertyName, null, $flags, null, $joinTable);
         $tableData->addField($tableFieldId);
     }
 

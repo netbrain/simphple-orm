@@ -8,7 +8,7 @@ class TableField {
     const PRIMARY = 1;
     const AUTO_INCREMENT = 2;
     const UNIQUE = 4;
-    CONST NOT_NULL = 8;
+    const NOT_NULL = 8;
 
     /**
      * @var string
@@ -194,6 +194,13 @@ class TableField {
      */
     public function setFieldName($name) {
         $this->fieldName = $name;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isOneToMany() {
+        return $this->isReference() && !$this->reference->isBoundToEntity();
     }
 
 }

@@ -60,7 +60,6 @@ class TableDataBuilderTest extends DaoTestCase {
             '`some-integer` INT UNIQUE, ' .
             '`some-string` VARCHAR(60) NOT NULL, ' .
             '`one_to_one_child` INT, ' .
-            '`one_to_many_child` INT, ' .
             '`_version` INT NOT NULL DEFAULT 1' .
             ')';
 
@@ -85,7 +84,7 @@ class TableDataBuilderTest extends DaoTestCase {
     public function testGetCreateSQLWithStringDataFromAnnotatedEntity() {
         $this->annotatedTest->setString("some string");
         $sql = $this->annotatedTableData->getCreateSQL($this->annotatedTest);
-        $this->assertEquals("INSERT INTO Test (`myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`one_to_many_child`,`_version`) VALUES ('{$this->annotatedTest->getId()}',NULL,NULL,NULL,'some string',NULL,NULL,1)", $sql);
+        $this->assertEquals("INSERT INTO Test (`myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`_version`) VALUES ('{$this->annotatedTest->getId()}',NULL,NULL,NULL,'some string',NULL,1)", $sql);
         $this->runQuery($sql);
     }
 
@@ -93,7 +92,7 @@ class TableDataBuilderTest extends DaoTestCase {
         $this->annotatedTest->setString("some string");
         $this->annotatedTest->setInt(10);
         $sql = $this->annotatedTableData->getCreateSQL($this->annotatedTest);
-        $this->assertEquals("INSERT INTO Test (`myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`one_to_many_child`,`_version`) VALUES ('{$this->annotatedTest->getId()}',NULL,NULL,10,'some string',NULL,NULL,1)", $sql);
+        $this->assertEquals("INSERT INTO Test (`myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`_version`) VALUES ('{$this->annotatedTest->getId()}',NULL,NULL,10,'some string',NULL,1)", $sql);
         $this->runQuery($sql);
     }
 
@@ -101,7 +100,7 @@ class TableDataBuilderTest extends DaoTestCase {
         $this->annotatedTest->setString("some string");
         $this->annotatedTest->setBoolean(true);
         $sql = $this->annotatedTableData->getCreateSQL($this->annotatedTest);
-        $this->assertEquals("INSERT INTO Test (`myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`one_to_many_child`,`_version`) VALUES ('{$this->annotatedTest->getId()}',true,NULL,NULL,'some string',NULL,NULL,1)", $sql);
+        $this->assertEquals("INSERT INTO Test (`myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`_version`) VALUES ('{$this->annotatedTest->getId()}',true,NULL,NULL,'some string',NULL,1)", $sql);
         $this->runQuery($sql);
     }
 
@@ -109,7 +108,7 @@ class TableDataBuilderTest extends DaoTestCase {
         $this->annotatedTest->setString("some string");
         $this->annotatedTest->setBoolean(false);
         $sql = $this->annotatedTableData->getCreateSQL($this->annotatedTest);
-        $this->assertEquals("INSERT INTO Test (`myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`one_to_many_child`,`_version`) VALUES ('{$this->annotatedTest->getId()}',false,NULL,NULL,'some string',NULL,NULL,1)", $sql);
+        $this->assertEquals("INSERT INTO Test (`myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`_version`) VALUES ('{$this->annotatedTest->getId()}',false,NULL,NULL,'some string',NULL,1)", $sql);
         $this->runQuery($sql);
     }
 
@@ -117,7 +116,7 @@ class TableDataBuilderTest extends DaoTestCase {
         $this->annotatedTest->setString("some string");
         $this->annotatedTest->setFloat(0.019284);
         $sql = $this->annotatedTableData->getCreateSQL($this->annotatedTest);
-        $this->assertEquals("INSERT INTO Test (`myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`one_to_many_child`,`_version`) VALUES ('{$this->annotatedTest->getId()}',NULL,0.019284,NULL,'some string',NULL,NULL,1)", $sql);
+        $this->assertEquals("INSERT INTO Test (`myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`_version`) VALUES ('{$this->annotatedTest->getId()}',NULL,0.019284,NULL,'some string',NULL,1)", $sql);
         $this->runQuery($sql);
     }
 
@@ -179,7 +178,7 @@ class TableDataBuilderTest extends DaoTestCase {
 
     public function testGetFindSQL() {
         $sql = $this->annotatedTableData->getFindSQL(1);
-        $this->assertEquals("SELECT `myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`one_to_many_child`,`_version` FROM Test WHERE myId = '1' LIMIT 1",$sql);
+        $this->assertEquals("SELECT `myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`_version` FROM Test WHERE myId = 1 LIMIT 1",$sql);
     }
 
     public function testGetDeleteSQL() {

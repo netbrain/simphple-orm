@@ -35,6 +35,11 @@ abstract class Dao {
         $this->reflectionEntityClass = new ReflectionClass($this->getEntityClass());
         $this->tableData = TableDataBuilder::build($this->getEntityClass());
         $this->runQuery($this->tableData->getCreateTableSQL());
+
+        foreach($this->tableData->getFieldsWithReference() as $tableField){
+            //FIXME this is run several times for the same table
+            $this->runQuery($tableField->getReference()->getCreateTableSQL());
+        }
     }
 
     /**
@@ -50,6 +55,7 @@ abstract class Dao {
                     //collection of entities (one-to-many)
                     foreach ($referencedValue as $entity) {
                         $this->persistReferencedEntity($entity);
+                        $this->persistOneToManyMapping($obj,$entity,$referencedField);
                     }
                 } else {
                     //single entity (one-to-one)
@@ -222,10 +228,29 @@ abstract class Dao {
             }
 
             if ($tableField->isReference()) {
-                $referencedTableData = $tableField->getReference();
-                $entity = $referencedTableData->getEntityInstance();
-                $this->setIdValue($entity, $value, $referencedTableData);
-                $value = new EntityProxy($entity, DaoFactory::getDaoFromEntity($entity), $referencedTableData, false);
+                if($tableField->isOneToMany()){
+                    $joinTableFields = $tableField->getReference()->getFieldsWithReference();
+                    $childField = null;
+                    assert(count($joinTableFields) === 2);
+                    foreach($joinTableFields as $jField){
+                        if($jField->getReference()->getEntityClassName() !== $this->tableData->getEntityClassName()){
+                            $childField = $jField;
+                            break;
+                        }
+                    }
+
+                    foreach($value as &$v){
+                        $referencedTableData = $childField->getReference();
+                        $entity = $referencedTableData->getEntityInstance();
+                        $this->setIdValue($entity, $v, $referencedTableData);
+                        $v = new EntityProxy($entity, DaoFactory::getDaoFromEntity($entity), $referencedTableData, false);
+                    }
+                }else{
+                    $referencedTableData = $tableField->getReference();
+                    $entity = $referencedTableData->getEntityInstance();
+                    $this->setIdValue($entity, $value, $referencedTableData);
+                    $value = new EntityProxy($entity, DaoFactory::getDaoFromEntity($entity), $referencedTableData, false);
+                }
             }
         }
         return $value;
@@ -249,20 +274,22 @@ abstract class Dao {
             $fieldName = $field->getFieldName();
             $propertyName = $field->getPropertyName();
 
-            $sourceProperty = $sourceReflection->getProperty($fieldName);
-            if ($this->reflectionEntityClass->hasProperty($propertyName)) {
-                $property = $this->reflectionEntityClass->getProperty($propertyName);
-                if ($property->isPrivate() || $property->isProtected()) {
-                    $property->setAccessible(true);
-                    $value = $this->getPropertyValue($sourceProperty->getValue($source), $propertyName);
-                    $property->setValue($destination, $value);
-                    $property->setAccessible(false);
+            if($sourceReflection->hasProperty($fieldName)){
+                $sourceProperty = $sourceReflection->getProperty($fieldName);
+                if ($this->reflectionEntityClass->hasProperty($propertyName)) {
+                    $property = $this->reflectionEntityClass->getProperty($propertyName);
+                    if ($property->isPrivate() || $property->isProtected()) {
+                        $property->setAccessible(true);
+                        $value = $this->getPropertyValue($sourceProperty->getValue($source), $propertyName);
+                        $property->setValue($destination, $value);
+                        $property->setAccessible(false);
+                    } else {
+                        $value = $this->getPropertyValue($sourceProperty->getValue($source), $propertyName);
+                        $property->setValue($destination, $value);
+                    }
                 } else {
-                    $value = $this->getPropertyValue($sourceProperty->getValue($source), $propertyName);
-                    $property->setValue($destination, $value);
+                    $destination->$propertyName = $this->getPropertyValue($sourceProperty->getValue($source), $propertyName);
                 }
-            } else {
-                $destination->$propertyName = $this->getPropertyValue($sourceProperty->getValue($source), $propertyName);
             }
 
         }
@@ -274,13 +301,35 @@ abstract class Dao {
      * @return null|object|stdClass
      */
     private function findEntity($id) {
-        $result = $this->runQuery($this->tableData->getFindSQL($id));
+        $query = $this->tableData->getFindSQL($id);
+        $result = $this->runQuery($query);
 
         if (!$result) {
             return null;
         }
 
         $obj = $result->fetch_object();
+
+        $fields = $this->tableData->getFieldsWithOneToManyRelationship();
+        foreach ($fields as $field){
+            $joinField = $childField = null;
+            $joinTableFields = $field->getReference()->getFieldsWithReference();
+            assert(count($joinTableFields) === 2);
+            foreach($joinTableFields as $jField){
+                if($jField->getReference()->getEntityClassName() === $this->tableData->getEntityClassName()){
+                    $joinField = $jField;
+                }else{
+                    $childField = $jField;
+                }
+            }
+            $joinQuery = $field->getReference()->getJoinSql($joinField, $id);
+            $joinResult = $this->runQuery($joinQuery);
+            while($row = $joinResult->fetch_row()){
+                $obj->{$field->getPropertyName()}[] = $row[0];
+            }
+
+        }
+
         return $obj;
     }
 
@@ -303,4 +352,39 @@ abstract class Dao {
      * @return string
      */
     public abstract function getEntityClass();
+
+    /**
+     * @param $parent
+     * @param $child
+     * @param $referencedField TableField
+     */
+    private function persistOneToManyMapping($parent, $child, $referencedField) {
+        $data = new stdClass();
+        $joinTable = $referencedField->getReference();
+
+
+        foreach($referencedField->getReference()->getFieldsWithReference() as $foreignKeyField){
+            foreach([$parent,$child] as $entity){
+                if($foreignKeyField->getReference()->getEntityClassName() === get_class($entity)){
+                    $data->{$foreignKeyField->getPropertyName()} = $this->getIdValue($entity,$foreignKeyField->getReference());
+                }
+            }
+        }
+
+        $query = $joinTable->getCreateSQL($data);
+        $this->runQuery($query);
+    }
+
+    /**
+     * @param $entities
+     */
+    public function initializeCollection($entities){
+        foreach($entities as $key => $entity){
+            if($entity instanceof EntityProxy){
+                $entity->initShallow();
+                $entities[$key] = $entity->getDelegate();
+            }
+        }
+        return $entities;
+    }
 }

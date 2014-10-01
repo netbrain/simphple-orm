@@ -67,10 +67,8 @@ class DaoTest extends DaoTestCase {
         $this->assertEquals($this->entity->getString(), $dbEntity->getString());
         $this->assertNotEquals($this->entity->getTransient(), $dbEntity->getTransient());
         $this->assertEquals($this->entity->getInt(), $dbEntity->getInt());
-        //$this->assertEquals($this->entity->getOneToManyChild(),$dbEntity->getOneToManyChild());
-
-        $this->entity->setString("Whaaat?!");
-        $this->annotatedTestDao->update($this->entity);
+        $dbEntity->setOneToManyChild($this->annotatedTestDao->initializeCollection($dbEntity->getOneToManyChild()));
+        $this->assertEquals($this->entity->getOneToManyChild(),$dbEntity->getOneToManyChild());
     }
 
     /**
