@@ -24,21 +24,29 @@ class DaoTest extends DaoTestCase {
      */
     private $entity;
 
-    public function testCreateAnnotatedTestEntity() {
+    protected function setUp() {
+        DaoFactory::build(self::$db);
+        $this->annotatedTestDao = DaoFactory::getDao("\\SimphpleOrm\\Test\\AnnotatedTestDao");
+        $this->childTestDao = DaoFactory::getDao("\\SimphpleOrm\\Test\\ChildTestDao");
+        $this->entity = new AnnotatedTest();
+        $this->entity->setString("some-string-value");
+    }
+
+    public function testCreateEntity() {
         $this->assertTrue($this->annotatedTestDao->isTransient($this->entity));
         $this->annotatedTestDao->create($this->entity);
         $this->assertFalse($this->annotatedTestDao->isTransient($this->entity));
         $this->assertNotNull($this->entity->_version);
     }
 
-    public function testFindAnnotatedTestEntity() {
+    public function testFindEntity() {
         $this->annotatedTestDao->create($this->entity);
         $this->entity = $this->annotatedTestDao->find($this->entity->getId());
         $this->assertNotNull($this->entity);
         self::$logger->info($this->entity);
     }
 
-    public function testCreateAnnotatedTestEntityWithData() {
+    public function testCreateEntityWithData() {
         $this->entity->setOneToOneChild(new ChildTest());
         $this->entity->setBoolean(true);
         $this->entity->setFloat(0.1);
@@ -68,7 +76,7 @@ class DaoTest extends DaoTestCase {
     /**
      * @expectedException \RuntimeException
      */
-    public function testCreateOptimisticLockingFailure() {
+    public function testOptimisticLockingFailure() {
         $this->annotatedTestDao->create($this->entity);
         $entity2 = clone $this->entity;
         $this->entity->setString("some change");
@@ -77,12 +85,18 @@ class DaoTest extends DaoTestCase {
         $this->annotatedTestDao->update($entity2);
     }
 
-    protected function setUp() {
-        DaoFactory::build(self::$db);
-        $this->annotatedTestDao = DaoFactory::getDao("\\SimphpleOrm\\Test\\AnnotatedTestDao");
-        $this->childTestDao = DaoFactory::getDao("\\SimphpleOrm\\Test\\ChildTestDao");
-        $this->entity = new AnnotatedTest();
-        $this->entity->setString("some-string-value");
+    public function testCanDeleteEntity(){
+        $this->annotatedTestDao->create($this->entity);
+        $this->annotatedTestDao->delete($this->entity);
+        $this->assertNull($this->annotatedTestDao->find($this->entity->getId()));
+    }
+
+    public function testCanDeleteWhereEntityIsPreviouslyUpdated(){
+        $this->annotatedTestDao->create($this->entity);
+        $this->entity->setString("some updated value");
+        $this->annotatedTestDao->update($this->entity);
+        $this->annotatedTestDao->delete($this->entity);
+        $this->assertNull($this->annotatedTestDao->find($this->entity->getId()));
     }
 
 

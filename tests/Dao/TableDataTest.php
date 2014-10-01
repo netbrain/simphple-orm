@@ -40,6 +40,16 @@ class TableDataBuilderTest extends DaoTestCase {
      */
     private $notAnnotatedTableData;
 
+    protected function setUp() {
+        parent::setUp();
+        $this->annotatedTest = new AnnotatedTest();
+        $this->notAnnotatedTest = new NotAnnotatedTest();
+        $this->annotatedTestDao = new AnnotatedTestDao(self::$db);
+        $this->notAnnotatedTestDao = new NotAnnotatedTestDao(self::$db);
+        $this->annotatedTableData = TableDataBuilder::build($this->annotatedTestDao->getEntityClass());
+        $this->notAnnotatedTableData = TableDataBuilder::build($this->notAnnotatedTestDao->getEntityClass());
+    }
+
     public function testGetCreateTableSQLFromAnnotatedEntity() {
         $sql = $this->annotatedTableData->getCreateTableSQL();
 
@@ -169,16 +179,14 @@ class TableDataBuilderTest extends DaoTestCase {
 
     public function testGetFindSQL() {
         $sql = $this->annotatedTableData->getFindSQL(1);
-        //$this->assertEquals("asd",$sql);
+        $this->assertEquals("SELECT `myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`one_to_many_child`,`_version` FROM Test WHERE myId = '1' LIMIT 1",$sql);
     }
 
-    protected function setUp() {
-        $this->annotatedTest = new AnnotatedTest();
-        $this->notAnnotatedTest = new NotAnnotatedTest();
-        $this->annotatedTestDao = new AnnotatedTestDao(self::$db);
-        $this->notAnnotatedTestDao = new NotAnnotatedTestDao(self::$db);
-        $this->annotatedTableData = TableDataBuilder::build($this->annotatedTestDao->getEntityClass());
-        $this->notAnnotatedTableData = TableDataBuilder::build($this->notAnnotatedTestDao->getEntityClass());
+    public function testGetDeleteSQL() {
+        $this->notAnnotatedTest->setId(1);
+        $sql = $this->notAnnotatedTableData->getDeleteSQL($this->notAnnotatedTest);
+        $this->assertEquals("DELETE FROM NotAnnotatedTest WHERE id = 1 AND _version = 1",$sql);
+        $this->runQuery($sql);
     }
 
 

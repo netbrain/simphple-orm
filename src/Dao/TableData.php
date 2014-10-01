@@ -450,5 +450,19 @@ class TableData {
         return $this->fieldsByFieldName[$name];
     }
 
+    public function getDeleteSQL($obj) {
+        $id = $this->getSQLFormattedID($this->getId($obj));
+        return sprintf("DELETE FROM %s WHERE %s = %s AND %s = %s",
+            $this->getName(), $this->getPrimaryKey()->getFieldName(),
+            $id,
+            $this->getVersionField()->getFieldName(),
+            $this->getVersion($obj));
+
+    }
+
+    private function getVersion($obj) {
+        return $this->getPropertyValue($obj,$this->getVersionField());
+    }
+
 
 }

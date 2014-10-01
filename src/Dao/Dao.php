@@ -77,8 +77,20 @@ abstract class Dao {
      */
     public function find($id) {
         $entity = $this->findEntity($id);
-        $entity = $this->cast($entity);
+        if($entity != null){
+            $entity = $this->cast($entity);
+        }
         return $entity;
+    }
+
+    /**
+     * Deletes an entity from the database
+     * @param $obj
+     * @return null|object
+     */
+    public function delete($obj) {
+        $query = $this->tableData->getDeleteSQL($obj);
+        $this->runQuery($query);
     }
 
     /**
@@ -89,7 +101,6 @@ abstract class Dao {
         $entity = $this->findEntity($this->getIdValue($obj));
         $this->cast($entity, $obj);
     }
-
 
     /**
      * Retrieves all entities from the database
@@ -121,6 +132,10 @@ abstract class Dao {
 
         if (!mysqli_affected_rows($this->db) > 0) {
             throw new \RuntimeException("No rows updated by update query! either row has been deleted or another version was committed");
+        }else{
+            //increment version
+            $versionPropertyName = $this->tableData->getVersionField()->getPropertyName();
+            $obj->{$versionPropertyName}++;
         }
     }
 
