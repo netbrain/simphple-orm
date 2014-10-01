@@ -20,7 +20,7 @@ abstract class DaoTestCase extends \PHPUnit_Framework_TestCase {
      */
     protected static $db;
 
-    function __construct(){
+    function __construct() {
 
     }
 
@@ -49,18 +49,32 @@ abstract class DaoTestCase extends \PHPUnit_Framework_TestCase {
 
     private static function configureMysqli() {
         $config = Config::getMysql();
-        self::$db = new mysqli($config['host'], $config['username'], $config['password'], $config['database'],$config['port'],$config['socket']);
+        self::$db = new mysqli($config['host'], $config['username'], $config['password'], $config['database'], $config['port'], $config['socket']);
         if (self::$db->connect_errno) {
             self::$logger->error("Failed to connect to MySQL: (" . self::$db->connect_errno . ") " . self::$db->connect_error);
         }
+    }
+
+    public static function tearDownAfterClass() {
+        self::runQueryOnAllTables("DROP TABLE %s");
     }
 
     public function tearDown() {
         self::runQueryOnAllTables("TRUNCATE TABLE %s");
     }
 
-    public static function tearDownAfterClass() {
-        self::runQueryOnAllTables("DROP TABLE %s");
+    private static function runQueryOnAllTables($query) {
+        $showTablesQuery = "SHOW TABLES";
+        $result = self::runQuery($showTablesQuery);
+        if ($result->num_rows > 0) {
+            while (true) {
+                $row = $result->fetch_row();
+                if ($row == null) {
+                    break;
+                }
+                self::runQuery(sprintf($query, $row[0]));
+            }
+        }
     }
 
     /**
@@ -74,20 +88,6 @@ abstract class DaoTestCase extends \PHPUnit_Framework_TestCase {
             self::fail(self::$db->error);
         }
         return $result;
-    }
-
-    private static function runQueryOnAllTables($query) {
-        $showTablesQuery = "SHOW TABLES";
-        $result = self::runQuery($showTablesQuery);
-        if ($result->num_rows > 0) {
-            while (true) {
-                $row = $result->fetch_row();
-                if ($row == null) {
-                    break;
-                }
-                self::runQuery(sprintf($query,$row[0]));
-            }
-        }
     }
 
 }

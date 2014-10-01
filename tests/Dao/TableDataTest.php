@@ -40,17 +40,6 @@ class TableDataBuilderTest extends DaoTestCase {
      */
     private $notAnnotatedTableData;
 
-
-    protected function setUp() {
-        $this->annotatedTest = new AnnotatedTest();
-        $this->notAnnotatedTest = new NotAnnotatedTest();
-        $this->annotatedTestDao = new AnnotatedTestDao(self::$db);
-        $this->notAnnotatedTestDao = new NotAnnotatedTestDao(self::$db);
-        $this->annotatedTableData = TableDataBuilder::build($this->annotatedTestDao->getEntityClass());
-        $this->notAnnotatedTableData = TableDataBuilder::build($this->notAnnotatedTestDao->getEntityClass());
-    }
-
-
     public function testGetCreateTableSQLFromAnnotatedEntity() {
         $sql = $this->annotatedTableData->getCreateTableSQL();
 
@@ -62,7 +51,7 @@ class TableDataBuilderTest extends DaoTestCase {
             '`some-string` VARCHAR(60) NOT NULL, ' .
             '`one_to_one_child` INT, ' .
             '`one_to_many_child` INT, ' .
-            '`_version` INT NOT NULL DEFAULT 1'.
+            '`_version` INT NOT NULL DEFAULT 1' .
             ')';
 
         $this->assertEquals($expected, $sql);
@@ -77,7 +66,7 @@ class TableDataBuilderTest extends DaoTestCase {
             '`float` FLOAT, ' .
             '`int` INT, ' .
             '`string` VARCHAR (255), ' .
-            '`_version` INT NOT NULL DEFAULT 1'.
+            '`_version` INT NOT NULL DEFAULT 1' .
             ')';
         $this->assertEquals($expected, $sql);
         $this->runQuery($sql);
@@ -89,7 +78,6 @@ class TableDataBuilderTest extends DaoTestCase {
         $this->assertEquals("INSERT INTO Test (`myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`one_to_many_child`,`_version`) VALUES ('{$this->annotatedTest->getId()}',NULL,NULL,NULL,'some string',NULL,NULL,1)", $sql);
         $this->runQuery($sql);
     }
-
 
     public function testGetCreateSQLWithIntDataFromAnnotatedEntity() {
         $this->annotatedTest->setString("some string");
@@ -107,7 +95,6 @@ class TableDataBuilderTest extends DaoTestCase {
         $this->runQuery($sql);
     }
 
-
     public function testGetCreateSQLWithBooleanFalseFromAnnotatedEntity() {
         $this->annotatedTest->setString("some string");
         $this->annotatedTest->setBoolean(false);
@@ -115,7 +102,6 @@ class TableDataBuilderTest extends DaoTestCase {
         $this->assertEquals("INSERT INTO Test (`myId`,`some-bool`,`some-float`,`some-integer`,`some-string`,`one_to_one_child`,`one_to_many_child`,`_version`) VALUES ('{$this->annotatedTest->getId()}',false,NULL,NULL,'some string',NULL,NULL,1)", $sql);
         $this->runQuery($sql);
     }
-
 
     public function testGetCreateSQLWithFloatDataFromAnnotatedEntity() {
         $this->annotatedTest->setString("some string");
@@ -131,7 +117,6 @@ class TableDataBuilderTest extends DaoTestCase {
         $this->assertEquals("INSERT INTO NotAnnotatedTest (`id`,`boolean`,`float`,`int`,`string`,`_version`) VALUES (DEFAULT,NULL,NULL,NULL,'some string',1)", $sql);
         $this->runQuery($sql);
     }
-
 
     public function testGetCreateSQLWithIntDataFromNotAnnotatedEntity() {
         $this->notAnnotatedTest->setString("some string");
@@ -149,7 +134,6 @@ class TableDataBuilderTest extends DaoTestCase {
         $this->runQuery($sql);
     }
 
-
     public function testGetCreateSQLWithBooleanFalseFromNotAnnotatedEntity() {
         $this->notAnnotatedTest->setString("some string");
         $this->notAnnotatedTest->setBoolean(false);
@@ -157,7 +141,6 @@ class TableDataBuilderTest extends DaoTestCase {
         $this->assertEquals("INSERT INTO NotAnnotatedTest (`id`,`boolean`,`float`,`int`,`string`,`_version`) VALUES (DEFAULT,false,NULL,NULL,'some string',1)", $sql);
         $this->runQuery($sql);
     }
-
 
     public function testGetCreateSQLWithFloatDataFromNotAnnotatedEntity() {
         $this->notAnnotatedTest->setString("some string");
@@ -187,6 +170,15 @@ class TableDataBuilderTest extends DaoTestCase {
     public function testGetFindSQL() {
         $sql = $this->annotatedTableData->getFindSQL(1);
         //$this->assertEquals("asd",$sql);
+    }
+
+    protected function setUp() {
+        $this->annotatedTest = new AnnotatedTest();
+        $this->notAnnotatedTest = new NotAnnotatedTest();
+        $this->annotatedTestDao = new AnnotatedTestDao(self::$db);
+        $this->notAnnotatedTestDao = new NotAnnotatedTestDao(self::$db);
+        $this->annotatedTableData = TableDataBuilder::build($this->annotatedTestDao->getEntityClass());
+        $this->notAnnotatedTableData = TableDataBuilder::build($this->notAnnotatedTestDao->getEntityClass());
     }
 
 

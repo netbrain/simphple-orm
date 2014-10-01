@@ -35,9 +35,18 @@ class DaoFactory {
 
     /**
      * @param $class
+     *
+     * @return bool
+     */
+    private function isDao($class) {
+        return is_subclass_of($class, "\\SimphpleOrm\\Dao\\Dao");
+    }
+
+    /**
+     * @param $class
      */
     private function registerDao($class) {
-        if(!array_key_exists($class,$this->daos)){
+        if (!array_key_exists($class, $this->daos)) {
             if (!$this->isDao($class)) {
                 throw new \RuntimeException("This is not a dao class");
             }
@@ -45,15 +54,6 @@ class DaoFactory {
             $this->daos[get_class($dao)] = $dao;
             $this->daosByEntity[ltrim($dao->getEntityClass(), '\\')] = $dao;
         }
-    }
-
-    /**
-     * @param $class
-     *
-     * @return bool
-     */
-    private function isDao($class) {
-        return is_subclass_of($class, "\\SimphpleOrm\\Dao\\Dao");
     }
 
     /**
@@ -83,7 +83,7 @@ class DaoFactory {
         if (self::$instance->isDao($class)) {
             self::$instance->registerDao($class);
         }
-        if(array_key_exists($class,self::$instance->daos)){
+        if (array_key_exists($class, self::$instance->daos)) {
             return self::$instance->daos[$class];
         }
         throw new \Exception("No DAO class found for '$class'");
@@ -94,11 +94,11 @@ class DaoFactory {
      * @return null|Dao
      */
     public static function getDaoFromEntity($class) {
-        if(!is_string($class)){
+        if (!is_string($class)) {
             $class = get_class($class);
         }
         $class = ltrim($class, '\\');
-        if(array_key_exists($class,self::$instance->daosByEntity)){
+        if (array_key_exists($class, self::$instance->daosByEntity)) {
             return self::$instance->daosByEntity[$class];
         }
         return null;

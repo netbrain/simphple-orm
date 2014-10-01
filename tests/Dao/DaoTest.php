@@ -24,19 +24,45 @@ class DaoTest extends DaoTestCase {
      */
     private $entity;
 
-    protected function setUp() {
-        DaoFactory::build(self::$db);
-        $this->annotatedTestDao = DaoFactory::getDao("\\SimphpleOrm\\Test\\AnnotatedTestDao");
-        $this->childTestDao = DaoFactory::getDao("\\SimphpleOrm\\Test\\ChildTestDao");
-        $this->entity = new AnnotatedTest();
-        $this->entity->setString("some-string-value");
-    }
-
-    public function testCreateAnnotatedTest() {
+    public function testCreateAnnotatedTestEntity() {
         $this->assertTrue($this->annotatedTestDao->isTransient($this->entity));
         $this->annotatedTestDao->create($this->entity);
         $this->assertFalse($this->annotatedTestDao->isTransient($this->entity));
         $this->assertNotNull($this->entity->_version);
+    }
+
+    public function testFindAnnotatedTestEntity() {
+        $this->annotatedTestDao->create($this->entity);
+        $this->entity = $this->annotatedTestDao->find($this->entity->getId());
+        $this->assertNotNull($this->entity);
+        self::$logger->info($this->entity);
+    }
+
+    public function testCreateAnnotatedTestEntityWithData() {
+        $this->entity->setOneToOneChild(new ChildTest());
+        $this->entity->setBoolean(true);
+        $this->entity->setFloat(0.1);
+        $this->entity->setInt(1);
+        $this->entity->setTransient("this is never stored to db");
+        $this->entity->setOneToManyChild(array(new ChildTest(), new ChildTest()));
+        $this->annotatedTestDao->create($this->entity);
+        /**
+         * @var $dbEntity AnnotatedTest
+         */
+        $dbEntity = $this->annotatedTestDao->find($this->entity->getId());
+
+        $this->assertEquals($this->entity->getId(), $dbEntity->getId());
+        $this->assertEquals($this->entity->getOneToOneChild()->getId(), $dbEntity->getOneToOneChild()->getId());
+        $this->assertEquals($this->entity->getOneToOneChild()->getString(), $dbEntity->getOneToOneChild()->getString());
+        $this->assertEquals($this->entity->isBoolean(), $dbEntity->isBoolean());
+        $this->assertEquals($this->entity->getFloat(), $dbEntity->getFloat());
+        $this->assertEquals($this->entity->getString(), $dbEntity->getString());
+        $this->assertNotEquals($this->entity->getTransient(), $dbEntity->getTransient());
+        $this->assertEquals($this->entity->getInt(), $dbEntity->getInt());
+        //$this->assertEquals($this->entity->getOneToManyChild(),$dbEntity->getOneToManyChild());
+
+        $this->entity->setString("Whaaat?!");
+        $this->annotatedTestDao->update($this->entity);
     }
 
     /**
@@ -51,42 +77,13 @@ class DaoTest extends DaoTestCase {
         $this->annotatedTestDao->update($entity2);
     }
 
-    public function testFindAnnotatedTest() {
-        $this->annotatedTestDao->create($this->entity);
-        $this->entity = $this->annotatedTestDao->find($this->entity->getId());
-        $this->assertNotNull($this->entity);
-        self::$logger->info($this->entity);
+    protected function setUp() {
+        DaoFactory::build(self::$db);
+        $this->annotatedTestDao = DaoFactory::getDao("\\SimphpleOrm\\Test\\AnnotatedTestDao");
+        $this->childTestDao = DaoFactory::getDao("\\SimphpleOrm\\Test\\ChildTestDao");
+        $this->entity = new AnnotatedTest();
+        $this->entity->setString("some-string-value");
     }
-
-    public function testCreateAnnotatedTestWithData() {
-        $this->entity->setOneToOneChild(new ChildTest());
-        $this->entity->setBoolean(true);
-        $this->entity->setFloat(0.1);
-        $this->entity->setInt(1);
-        $this->entity->setTransient("this is never stored to db");
-        $this->entity->setOneToManyChild(array(new ChildTest(), new ChildTest()));
-        $this->annotatedTestDao->create($this->entity);
-        /**
-         * @var $dbEntity AnnotatedTest
-         */
-        $dbEntity = $this->annotatedTestDao->find($this->entity->getId());
-
-        $this->assertEquals($this->entity->getId(),$dbEntity->getId());
-        $this->assertEquals($this->entity->getOneToOneChild()->getId(),$dbEntity->getOneToOneChild()->getId());
-        $this->assertEquals($this->entity->getOneToOneChild()->getString(),$dbEntity->getOneToOneChild()->getString());
-        $this->assertEquals($this->entity->isBoolean(),$dbEntity->isBoolean());
-        $this->assertEquals($this->entity->getFloat(),$dbEntity->getFloat());
-        $this->assertEquals($this->entity->getString(),$dbEntity->getString());
-        $this->assertNotEquals($this->entity->getTransient(),$dbEntity->getTransient());
-        $this->assertEquals($this->entity->getInt(),$dbEntity->getInt());
-        //$this->assertEquals($this->entity->getOneToManyChild(),$dbEntity->getOneToManyChild());
-
-        $this->entity->setString("Whaaat?!");
-        $this->annotatedTestDao->update($this->entity);
-
-
-    }
-
 
 
 }

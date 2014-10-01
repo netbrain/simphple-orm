@@ -181,5 +181,5 @@ class AnnotatedTest {
     public function setTransient($transient) {
         $this->transient = $transient;
     }
-    
+
 }

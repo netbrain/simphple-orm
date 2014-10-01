@@ -3,7 +3,7 @@
 namespace SimphpleOrm\Test;
 
 
-class NotAnnotatedTest{
+class NotAnnotatedTest {
     /**
      * @var integer
      * @id
