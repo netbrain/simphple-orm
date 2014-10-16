@@ -1,6 +1,6 @@
-/vendor/
-./composer.phar
-./composer.lock
-./phpunit.phar
-./config.ini
-./.idea/
+composer.lock
+composer.phar
+config.ini
+phpunit.phar
+.idea/
+vendor/

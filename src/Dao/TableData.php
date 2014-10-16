@@ -116,7 +116,7 @@ class TableData {
         foreach ($this->fields as $field) {
             $propertiesSql[] = $this->getFieldDefinitionSQL($field);
         }
-        return join(', ', $propertiesSql);
+        return join(',', $propertiesSql);
     }
 
     private function getFieldDefinitionSQL(TableField $field) {
@@ -355,7 +355,7 @@ class TableData {
         }
 
         if (is_bool($value)) {
-            return var_export($value, true);
+            return strtoupper(var_export($value, true));
         }
 
         if ($field->isNumericType()) {

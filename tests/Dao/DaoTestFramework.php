@@ -90,4 +90,31 @@ abstract class DaoTestFramework extends \PHPUnit_Framework_TestCase {
         }
     }
 
+    /**
+     * @param $str
+     * @param $function
+     * @param mixed $_ [optional]
+     * @return mixed|string
+     */
+    protected function assertEqualsFixture($str,$function, $_ = null) {
+        $fixture = "tests/Fixtures/$function.sql";
+
+        if(!file_exists($fixture)){
+            $this->fail("$fixture doesn't exist");
+        }
+
+        $fixtureSql = file_get_contents($fixture);
+        $fixtureSql = preg_replace('/^[ ]+/', "", explode("\n", $fixtureSql));
+        $fixtureSql = preg_replace('/[ ]+/', " ", $fixtureSql);
+        $fixtureSql = join('', $fixtureSql);
+
+        $args = array($fixtureSql);
+        for($x = 2; $x < func_num_args(); $x++){
+            $args[] = func_get_arg($x);
+        }
+
+        $fixtureSql = call_user_func_array("sprintf",$args);
+        $this->assertEquals($fixtureSql,$str,__DIR__."/$fixture");
+    }
+
 }

@@ -85,7 +85,7 @@ class TableDataBuilder {
         }elseif(property_exists($propertyAnnotations,'var')){
             switch($propertyAnnotations->var){
                 case 'string':
-                    return 'VARCHAR (255)';
+                    return 'VARCHAR(255)';
                 case 'bool':
                 case 'boolean':
                     return 'BOOL';
