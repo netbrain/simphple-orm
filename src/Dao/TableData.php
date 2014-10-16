@@ -513,6 +513,10 @@ class TableData {
 
     }
 
+    public function getAllSQL() {
+        return sprintf("SELECT * FROM %s",$this->getName());
+    }
+
     /**
      * @param $joinField TableField
      * @param $id mixed

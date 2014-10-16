@@ -120,12 +120,13 @@ abstract class Dao {
      * @return array
      */
     public function all() {
-        $query = "SELECT id FROM {$this->tableData->getName()}";
+        $query = $this->tableData->getAllSQL();
         $result = $this->runQuery($query);
 
         $entities = array();
-        while ($row = $result->fetch_assoc()) {
-            $entities[] = $this->find($row['id']);
+        while ($obj = $result->fetch_object()) {
+            $this->addRelatedDataToObj($obj);
+            $entities[] = $entity = $this->cast($obj);
         }
 
         return $entities;
@@ -161,6 +162,7 @@ abstract class Dao {
     }
 
     /**
+     * Returns the id value on an entity object
      * @param $entity
      * @param null $tableData
      * @return mixed
@@ -169,7 +171,7 @@ abstract class Dao {
         if (is_null($tableData)) {
             $tableData = $this->tableData;
         }
-        return $tableData->getPropertyValue($entity, $this->getIdPropertyName($tableData));
+        return $tableData->getPropertyValue($entity, $tableData->getPrimaryKey()->getPropertyName());
     }
 
     private function setVersion($obj, $version = null) {
@@ -203,18 +205,7 @@ abstract class Dao {
         if (is_null($tableData)) {
             $tableData = $this->tableData;
         }
-        $tableData->setPropertyValue($entity, $this->getIdPropertyName($tableData), $value);
-    }
-
-    /**
-     * @param null $tableData
-     * @return string
-     */
-    private function getIdPropertyName($tableData = null) {
-        if (is_null($tableData)) {
-            $tableData = $this->tableData;
-        }
-        return $tableData->getPrimaryKey()->getPropertyName();
+        $tableData->setPropertyValue($entity, $tableData->getPrimaryKey()->getPropertyName(), $value);
     }
 
     /**
@@ -310,31 +301,12 @@ abstract class Dao {
         $query = $this->tableData->getFindSQL($id);
         $result = $this->runQuery($query);
 
-        if (!$result) {
+        if (!$result || mysqli_num_rows($result) == 0) {
             return null;
         }
 
         $obj = $result->fetch_object();
-
-        $fields = $this->tableData->getFieldsWithOneToManyRelationship();
-        foreach ($fields as $field){
-            $joinField = $childField = null;
-            $joinTableFields = $field->getReference()->getFieldsWithReference();
-            assert(count($joinTableFields) === 2);
-            foreach($joinTableFields as $jField){
-                if($jField->getReference()->getEntityClassName() === $this->tableData->getEntityClassName()){
-                    $joinField = $jField;
-                }else{
-                    $childField = $jField;
-                }
-            }
-            $joinQuery = $field->getReference()->getJoinSql($joinField, $id);
-            $joinResult = $this->runQuery($joinQuery);
-            while($row = $joinResult->fetch_row()){
-                $obj->{$field->getPropertyName()}[] = $row[0];
-            }
-
-        }
+        $this->addRelatedDataToObj($obj);
 
         return $obj;
     }
@@ -392,5 +364,30 @@ abstract class Dao {
             }
         }
         return $entities;
+    }
+
+    /**
+     * @param $obj
+     */
+    private function addRelatedDataToObj($obj) {
+        if($obj == null){
+            throw new \InvalidArgumentException();
+        }
+        $fields = $this->tableData->getFieldsWithOneToManyRelationship();
+        foreach ($fields as $field) {
+            $joinField = null;
+            $joinTableFields = $field->getReference()->getFieldsWithReference();
+            assert(count($joinTableFields) === 2);
+            foreach ($joinTableFields as $jField) {
+                if ($jField->getReference()->getEntityClassName() === $this->tableData->getEntityClassName()) {
+                    $joinField = $jField;
+                }
+            }
+            $joinQuery = $field->getReference()->getJoinSql($joinField, $obj->{$this->tableData->getPrimaryKey()->getFieldName()});
+            $joinResult = $this->runQuery($joinQuery);
+            while ($row = $joinResult->fetch_row()) {
+                $obj->{$field->getPropertyName()}[] = $row[0];
+            }
+        }
     }
 }

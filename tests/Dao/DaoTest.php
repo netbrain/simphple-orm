@@ -144,6 +144,41 @@ class DaoTest extends DaoTestCase {
         $this->annotatedTestDao->refresh($oldEntity);
     }
 
+
+    /**
+     * @expectedException \RuntimeException
+     */
+    public function testCannotInsertTheSameEntityTwice(){
+        $this->annotatedTestDao->create($this->entity);
+        $this->annotatedTestDao->create($this->entity);;
+    }
+
+
+
+    public function testCanFetchAllEntites(){
+        /**
+         * @var $entities ChildTest[]
+         * @var $all ChildTest[]
+         */
+        $entities = array(
+            new ChildTest(),
+            new ChildTest()
+        );
+
+        foreach($entities as $entity){
+            $this->childTestDao->create($entity);
+        }
+
+        $all = $this->childTestDao->all();
+        $this->assertEquals(count($entities),count($all));
+
+        for($x = 0 ; $x < count($entities); $x++){
+            $this->assertEquals($entities[$x]->getId(),$all[$x]->getId());
+        }
+    }
+
+
+
 }
 
 
