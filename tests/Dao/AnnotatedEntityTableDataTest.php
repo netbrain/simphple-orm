@@ -6,7 +6,7 @@ namespace SimphpleOrm\Dao;
 use SimphpleOrm\Test\AnnotatedTest;
 use SimphpleOrm\Test\AnnotatedTestDao;
 
-class AnnotatedEntityTableDataBuilderTest extends DaoTestFramework {
+class AnnotatedEntityTableDataBuilderTest extends DaoTestCase {
 
     /**
      * @var AnnotatedTestDao
@@ -80,6 +80,18 @@ class AnnotatedEntityTableDataBuilderTest extends DaoTestFramework {
 
     public function testDropAnnotatedTestTableIfExistsSQL() {
         $sql = $this->annotatedTableData->getDropTableSQL();
+        $this->assertEqualsFixture($sql,__FUNCTION__);
+        $this->runQuery($sql);
+    }
+
+    public function testGetFindSQLOnAnnotatedEntity() {
+        $sql = $this->annotatedTableData->getFindSQL(1);
+        $this->assertEqualsFixture($sql,__FUNCTION__);
+    }
+
+    public function testGetDeleteSQLOnAnnotatedEntity() {
+        $this->annotatedTest->setId(1);
+        $sql = $this->annotatedTableData->getDeleteSQL($this->annotatedTest);
         $this->assertEqualsFixture($sql,__FUNCTION__);
         $this->runQuery($sql);
     }

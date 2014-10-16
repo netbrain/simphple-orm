@@ -8,7 +8,7 @@ class TableField {
     const PRIMARY = 1;
     const AUTO_INCREMENT = 2;
     const UNIQUE = 4;
-    CONST NOT_NULL = 8;
+    const NOT_NULL = 8;
 
     /**
      * @var string
@@ -49,6 +49,10 @@ class TableField {
         return $this->isFlagSet(self::PRIMARY);
     }
 
+    private function isFlagSet($flag) {
+        return (($this->flags & $flag) == $flag);
+    }
+
     public function isAutoIncrement() {
         return $this->isFlagSet(self::AUTO_INCREMENT);
     }
@@ -61,15 +65,12 @@ class TableField {
         return $this->isFlagSet(self::NOT_NULL);
     }
 
-    private function isFlagSet($flag) {
-        return (($this->flags & $flag) == $flag);
-    }
-
     public function removeFlag($flag) {
         if ($this->isFlagSet($flag)) {
             $this->flags ^= $flag;
         }
     }
+
     public function addFlag($flag) {
         $this->flags |= $flag;
     }
@@ -82,22 +83,6 @@ class TableField {
     public function setDefault($default) {
         $this->default = $default;
     }
-
-    /**
-     * @return string
-     */
-    public function getFieldName() {
-        return $this->fieldName;
-    }
-
-    /**
-     * Returns the SQL field name
-     * @param string $name
-     */
-    public function setFieldName($name) {
-        $this->fieldName = $name;
-    }
-
 
     /**
      * Returns the PHP property name
@@ -115,17 +100,10 @@ class TableField {
     }
 
     /**
-     * @return string
+     * @return TableData
      */
-    public function getType() {
-        return $this->type;
-    }
-
-    /**
-     * @param string $type
-     */
-    public function setType($type) {
-        $this->type = $type;
+    public function getReference() {
+        return $this->reference;
     }
 
     /**
@@ -133,13 +111,6 @@ class TableField {
      */
     public function setReference(TableData $reference) {
         $this->reference = $reference;
-    }
-
-    /**
-     * @return TableData
-     */
-    public function getReference() {
-        return $this->reference;
     }
 
     public function isReference() {
@@ -164,7 +135,21 @@ class TableField {
         }
     }
 
-    public function isBoolType(){
+    /**
+     * @return string
+     */
+    public function getType() {
+        return $this->type;
+    }
+
+    /**
+     * @param string $type
+     */
+    public function setType($type) {
+        $this->type = $type;
+    }
+
+    public function isBoolType() {
         switch ($this->getType()) {
             case 'BOOL':
             case 'BOOLEAN':
@@ -174,14 +159,14 @@ class TableField {
         }
     }
 
-    public function isStringType(){
+    public function isStringType() {
         switch ($this->getType()) {
             case 'TINYTEXT':
             case 'TEXT':
             case 'LONGTEXT':
                 return true;
             default:
-                if(strpos($this->getType(),"VARCHAR") === 0){
+                if (strpos($this->getType(), "VARCHAR") === 0) {
                     return true;
                 }
                 return false;
@@ -194,6 +179,28 @@ class TableField {
 
     public function isVersion() {
         return $this->getFieldName() === TableData::VERSION_FIELD;
+    }
+
+    /**
+     * @return string
+     */
+    public function getFieldName() {
+        return $this->fieldName;
+    }
+
+    /**
+     * Returns the SQL field name
+     * @param string $name
+     */
+    public function setFieldName($name) {
+        $this->fieldName = $name;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isOneToMany() {
+        return $this->isReference() && !$this->reference->isBoundToEntity();
     }
 
 }

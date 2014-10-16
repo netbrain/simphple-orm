@@ -5,7 +5,6 @@ INSERT INTO Test (
   `some-integer`,
   `some-string`,
   `one_to_one_child`,
-  `one_to_many_child`,
   `_version`
 ) VALUES (
   '%s',
@@ -13,7 +12,6 @@ INSERT INTO Test (
   NULL,
   NULL,
   'some string',
-  NULL,
   NULL,
   1
 )

@@ -6,7 +6,7 @@ namespace SimphpleOrm\Test;
 use SimphpleOrm\Dao\Dao;
 
 class ChildTestDao extends Dao {
-    public function getEntityClass(){
+    public function getEntityClass() {
         return "\\SimphpleOrm\\Test\\ChildTest";
     }
 }

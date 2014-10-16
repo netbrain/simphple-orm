@@ -7,7 +7,7 @@ use Logger;
 use mysqli;
 use SimphpleOrm\Config\Config;
 
-abstract class DaoTestFramework extends \PHPUnit_Framework_TestCase {
+abstract class DaoTestCase extends \PHPUnit_Framework_TestCase {
 
     /**
      * @var Logger
@@ -20,7 +20,7 @@ abstract class DaoTestFramework extends \PHPUnit_Framework_TestCase {
      */
     protected static $db;
 
-    function __construct(){
+    function __construct() {
 
     }
 
@@ -49,31 +49,18 @@ abstract class DaoTestFramework extends \PHPUnit_Framework_TestCase {
 
     private static function configureMysqli() {
         $config = Config::getMysql();
-        self::$db = new mysqli($config['host'], $config['username'], $config['password'], $config['database'],$config['port'],$config['socket']);
+        self::$db = new mysqli($config['host'], $config['username'], $config['password'], $config['database'], $config['port'], $config['socket']);
         if (self::$db->connect_errno) {
             self::$logger->error("Failed to connect to MySQL: (" . self::$db->connect_errno . ") " . self::$db->connect_error);
         }
-    }
-
-    public function tearDown() {
-        self::runQueryOnAllTables("TRUNCATE TABLE %s");
     }
 
     public static function tearDownAfterClass() {
         self::runQueryOnAllTables("DROP TABLE %s");
     }
 
-    /**
-     * @param $sql
-     * @return bool|\mysqli_result
-     */
-    protected static function runQuery($sql) {
-        $result = self::$db->query($sql);
-        self::$logger->debug("Ran query: " . $sql);
-        if (!$result) {
-            self::fail(self::$db->error);
-        }
-        return $result;
+    public function tearDown() {
+        self::runQueryOnAllTables("TRUNCATE TABLE %s");
     }
 
     private static function runQueryOnAllTables($query) {
@@ -85,7 +72,7 @@ abstract class DaoTestFramework extends \PHPUnit_Framework_TestCase {
                 if ($row == null) {
                     break;
                 }
-                self::runQuery(sprintf($query,$row[0]));
+                self::runQuery(sprintf($query, $row[0]));
             }
         }
     }
@@ -99,7 +86,7 @@ abstract class DaoTestFramework extends \PHPUnit_Framework_TestCase {
     protected function assertEqualsFixture($str,$function, $_ = null) {
         $fixture = "tests/Fixtures/$function.sql";
 
-        if(!file_exists($fixture)){
+        if (!file_exists($fixture)) {
             $this->fail("$fixture doesn't exist");
         }
 
@@ -109,12 +96,25 @@ abstract class DaoTestFramework extends \PHPUnit_Framework_TestCase {
         $fixtureSql = join('', $fixtureSql);
 
         $args = array($fixtureSql);
-        for($x = 2; $x < func_num_args(); $x++){
+        for ($x = 2; $x < func_num_args(); $x++) {
             $args[] = func_get_arg($x);
         }
 
-        $fixtureSql = call_user_func_array("sprintf",$args);
-        $this->assertEquals($fixtureSql,$str,__DIR__."/$fixture");
+        $fixtureSql = call_user_func_array("sprintf", $args);
+        $this->assertEquals($fixtureSql, $str, __DIR__ . "/$fixture");
+    }
+
+    /**
+     * @param $sql
+     * @return bool|\mysqli_result
+     */
+    protected static function runQuery($sql) {
+        $result = self::$db->query($sql);
+        self::$logger->debug("Ran query: " . $sql);
+        if (!$result) {
+            self::fail(self::$db->error);
+        }
+        return $result;
     }
 
 }
