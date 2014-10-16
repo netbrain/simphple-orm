@@ -97,6 +97,9 @@ abstract class Dao {
     public function delete($obj) {
         $query = $this->tableData->getDeleteSQL($obj);
         $this->runQuery($query);
+        if(!mysqli_affected_rows($this->db) > 0){
+            throw new \RuntimeException("Nothing was deleted, might be due to optimistic locking failure or simply that the entity no longer exists");
+        }
     }
 
     /**
@@ -105,6 +108,9 @@ abstract class Dao {
      */
     public function refresh(&$obj) {
         $entity = $this->findEntity($this->getIdValue($obj));
+        if($entity == null){
+            throw new \RuntimeException("Cannot refresh this entity, it seem's it doesn't exist anymore!");
+        }
         $this->cast($entity, $obj);
     }
 

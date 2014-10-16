@@ -7,6 +7,7 @@ use SimphpleOrm\Test\AnnotatedTest;
 use SimphpleOrm\Test\AnnotatedTestDao;
 use SimphpleOrm\Test\ChildTest;
 use SimphpleOrm\Test\ChildTestDao;
+use Symfony\Component\Process\Exception\RuntimeException;
 
 class DaoTest extends DaoTestCase {
     /**
@@ -43,7 +44,11 @@ class DaoTest extends DaoTestCase {
         $this->annotatedTestDao->create($this->entity);
         $this->entity = $this->annotatedTestDao->find($this->entity->getId());
         $this->assertNotNull($this->entity);
-        self::$logger->info($this->entity);
+    }
+
+    public function testCannotFindNonExistingEntity() {
+        $this->entity = $this->annotatedTestDao->find(-10);
+        $this->assertNull($this->entity);
     }
 
     public function testCreateEntityWithData() {
@@ -74,7 +79,7 @@ class DaoTest extends DaoTestCase {
     /**
      * @expectedException \RuntimeException
      */
-    public function testOptimisticLockingFailure() {
+    public function testCannotUpdateIfWorkingOnOldEntity() {
         $this->annotatedTestDao->create($this->entity);
         $entity2 = clone $this->entity;
         $this->entity->setString("some change");
@@ -89,6 +94,14 @@ class DaoTest extends DaoTestCase {
         $this->assertNull($this->annotatedTestDao->find($this->entity->getId()));
     }
 
+
+    /**
+     * @expectedException RuntimeException
+     */
+    public function testCannotDeleteNonExistingEntity(){
+        $this->annotatedTestDao->delete($this->entity);
+    }
+
     public function testCanDeleteWhereEntityIsPreviouslyUpdated(){
         $this->annotatedTestDao->create($this->entity);
         $this->entity->setString("some updated value");
@@ -97,6 +110,39 @@ class DaoTest extends DaoTestCase {
         $this->assertNull($this->annotatedTestDao->find($this->entity->getId()));
     }
 
+    /**
+     * @expectedException \RuntimeException
+     */
+    public function testCannotDeletIfWorkingOnOldEntity(){
+        $this->annotatedTestDao->create($this->entity);
+        $oldEntity = clone $this->entity;
+        $this->entity->setString("some updated value");
+        $this->annotatedTestDao->update($this->entity);
+        $this->annotatedTestDao->delete($oldEntity);
+    }
+
+
+    public function testCanRefreshEntity(){
+        $this->annotatedTestDao->create($this->entity);
+        $oldEntity = clone $this->entity;
+        $this->entity->setString("some updated value");
+        $this->annotatedTestDao->update($this->entity);
+
+
+        $this->annotatedTestDao->refresh($oldEntity);
+        $this->assertEquals($this->entity->getString(),$oldEntity->getString());
+    }
+
+    /**
+     * @expectedException \RuntimeException
+     */
+    public function testCanotRefreshDeletedEntity(){
+        $this->annotatedTestDao->create($this->entity);
+        $oldEntity = clone $this->entity;
+        $this->annotatedTestDao->delete($this->entity);
+
+        $this->annotatedTestDao->refresh($oldEntity);
+    }
 
 }
 
