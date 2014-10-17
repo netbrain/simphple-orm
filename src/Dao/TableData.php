@@ -152,8 +152,8 @@ class TableData {
         return join(' ', $sqlArray);
     }
 
-    public function  getFindSQL($id) {
-        $id = $this->getSQLFormattedValue($id);
+    public function getFindSQL($id) {
+        $id = $this->getSQLFormattedValue($id, $this->getPrimaryKey());
         $fields = $this->getSQLFields($this->getLocalFields());
         $query = sprintf('SELECT %s FROM %s WHERE %s = %s LIMIT 1',
             $fields, $this->getName(), $this->getPrimaryKey()->getFieldName(), $id);
@@ -162,13 +162,20 @@ class TableData {
 
     /**
      * @param $value
+     * @param $tableField TableField
      * @return string
      */
-    private function getSQLFormattedValue($value) {
-        if(is_string($value)){
-            $value = "'$value'";
+    private function getSQLFormattedValue($value,$tableField) {
+        if($tableField->isNumericType()){
+            return var_export($value,true);
+        }else if($tableField->isBoolType()){
+            return strtoupper(var_export($value, true));
+        }else if($tableField->isStringType()){
+            if(!is_string($value)){
+                $value = var_export($value,true);
+            }
+            return sprintf("'%s'",$value);
         }
-        return $value;
     }
 
     /**
@@ -486,7 +493,7 @@ class TableData {
     }
 
     public function getVersionSQL($id) {
-        $id = $this->getSQLFormattedValue($id);
+        $id = $this->getSQLFormattedValue($id, $this->getPrimaryKey());
         return sprintf("SELECT %s FROM %s WHERE %s = %s LIMIT 1", $this->getVersionField()->getFieldName(), $this->getName(), $this->getPrimaryKey()->getFieldName(), $id);
 
     }
@@ -504,7 +511,7 @@ class TableData {
     }
 
     public function getDeleteSQL($obj) {
-        $id = $this->getSQLFormattedValue($this->getId($obj));
+        $id = $this->getSQLFormattedValue($this->getId($obj),$this->getPrimaryKey());
         return sprintf("DELETE FROM %s WHERE %s = %s AND %s = %s",
             $this->getName(), $this->getPrimaryKey()->getFieldName(),
             $id,
@@ -523,7 +530,7 @@ class TableData {
      * @return string
      */
     public function getJoinSql($joinField, $id) {
-        $id = $this->getSQLFormattedValue($id);
+        $id = $this->getSQLFormattedValue($id,$this->getPrimaryKey());
         $fields = [];
         foreach($this->getFieldsWithReference() as $field){
             if($field !== $joinField){

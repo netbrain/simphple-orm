@@ -1,1 +1,1 @@
-DELETE FROM Test WHERE myId = 1 AND _version = 1
+DELETE FROM Test WHERE myId = '1' AND _version = 1

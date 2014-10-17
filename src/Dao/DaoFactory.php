@@ -74,6 +74,7 @@ class DaoFactory {
     }
 
     /**
+     * @deprecated Use Dao::getInstance() instead.
      * @param $class
      * @throws \Exception
      * @return Dao

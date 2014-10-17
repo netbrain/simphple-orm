@@ -24,7 +24,7 @@ class EntityProxy {
         }
 
         if (!$this->initialized) {
-            $this->initShallow();
+            $this->initialize();
         }
 
         if (strpos($name, 'get') === 0) {
@@ -36,16 +36,17 @@ class EntityProxy {
                  * @var $referencedEntity EntityProxy
                  */
                 $referencedEntity = $this->getDelegatePropertyValue($propertyName);
-                if (!$referencedEntity->isInitialized()) {
-                    $referencedEntity->initShallow();
+                if ($referencedEntity != null && !$referencedEntity->isInitialized()) {
+                    $referencedEntity->initialize();
                 }
             }
         }
         return call_user_func_array(array($this->delegate, $name), $arguments);
     }
 
-    public function initShallow() {
+    public function initialize() {
         $this->dao->refresh($this->delegate);
+        $this->initialized = true;
     }
 
     /**

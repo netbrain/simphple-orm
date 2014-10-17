@@ -54,12 +54,16 @@ abstract class Dao {
                 if (is_array($referencedValue)) {
                     //collection of entities (one-to-many)
                     foreach ($referencedValue as $entity) {
-                        $this->persistReferencedEntity($entity);
-                        $this->persistOneToManyMapping($obj,$entity,$referencedField);
+                        if($this->isTransient($entity)) {
+                            $this->persistReferencedEntity($entity);
+                            $this->persistOneToManyMapping($obj, $entity, $referencedField);
+                        }
                     }
                 } else {
                     //single entity (one-to-one)
-                    $this->persistReferencedEntity($referencedValue);
+                    if($this->isTransient($referencedValue)){
+                        $this->persistReferencedEntity($referencedValue);
+                    }
                 }
 
             }
@@ -359,7 +363,7 @@ abstract class Dao {
     public function initializeCollection($entities){
         foreach($entities as $key => $entity){
             if($entity instanceof EntityProxy){
-                $entity->initShallow();
+                $entity->initialize();
                 $entities[$key] = $entity->getDelegate();
             }
         }
@@ -389,5 +393,13 @@ abstract class Dao {
                 $obj->{$field->getPropertyName()}[] = $row[0];
             }
         }
+    }
+
+    /**
+     * @return self
+     * @throws \Exception
+     */
+    public static function getInstance(){
+        return DaoFactory::getDao(get_called_class());
     }
 }

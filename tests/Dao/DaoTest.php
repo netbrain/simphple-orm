@@ -7,6 +7,8 @@ use SimphpleOrm\Test\AnnotatedTest;
 use SimphpleOrm\Test\AnnotatedTestDao;
 use SimphpleOrm\Test\ChildTest;
 use SimphpleOrm\Test\ChildTestDao;
+use SimphpleOrm\Test\ReferenceTest;
+use SimphpleOrm\Test\ReferenceTestDao;
 use Symfony\Component\Process\Exception\RuntimeException;
 
 class DaoTest extends DaoTestCase {
@@ -94,7 +96,6 @@ class DaoTest extends DaoTestCase {
         $this->assertNull($this->annotatedTestDao->find($this->entity->getId()));
     }
 
-
     /**
      * @expectedException RuntimeException
      */
@@ -144,7 +145,6 @@ class DaoTest extends DaoTestCase {
         $this->annotatedTestDao->refresh($oldEntity);
     }
 
-
     /**
      * @expectedException \RuntimeException
      */
@@ -152,8 +152,6 @@ class DaoTest extends DaoTestCase {
         $this->annotatedTestDao->create($this->entity);
         $this->annotatedTestDao->create($this->entity);;
     }
-
-
 
     public function testCanFetchAllEntites(){
         /**
@@ -175,6 +173,31 @@ class DaoTest extends DaoTestCase {
         for($x = 0 ; $x < count($entities); $x++){
             $this->assertEquals($entities[$x]->getId(),$all[$x]->getId());
         }
+    }
+
+    public function testCanFetchReferenceFromReference(){
+        $dao = ReferenceTestDao::getInstance();
+        $reference1 = new ReferenceTest();
+        $reference2 = new ReferenceTest();
+        $reference3 = new ReferenceTest();
+
+        $reference1->setReference($reference2);
+        $reference2->setReference($reference3);
+
+        $dao->create($reference1);
+
+        /**
+         * @var $ref ReferenceTest
+         */
+        $ref = $dao->find($reference1->getId());
+        $this->assertEquals($reference1->getId(),$ref->getId());
+        $ref = $ref->getReference();
+        $this->assertEquals($reference2->getId(),$ref->getId());
+        $ref = $ref->getReference();
+        $this->assertEquals($reference3->getId(),$ref->getId());
+        $ref = $ref->getReference();
+        $this->assertNull($ref);
+
     }
 
 
