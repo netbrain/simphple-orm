@@ -140,7 +140,7 @@ class TableDataBuilder {
         $type = $namespace . '\\' . $propertyAnnotations->var;
 
         if (!class_exists($type)) {
-            throw new Exception("Could not find entity reference class: " . $type);
+            throw new Exception("Could not find entity reference class: " . $type. " regarding model: ".$tableData->getEntityClassName());
         }
 
         $otherTable = TableDataBuilder::build($type);

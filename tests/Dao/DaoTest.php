@@ -197,6 +197,17 @@ class DaoTest extends DaoTestCase {
         $this->assertEquals($reference3->getId(),$ref->getId());
         $ref = $ref->getReference();
         $this->assertNull($ref);
+    }
+
+    public function testCanUpdateOneToManyCollection(){
+        $this->entity->setOneToManyChild(array(new ChildTest()));
+        $this->annotatedTestDao->create($this->entity);
+        $this->entity = $this->annotatedTestDao->find($this->entity->getId());
+        $this->assertEquals(1,count($this->entity->getOneToManyChild()));
+        $this->entity->setOneToManyChild(array());
+        $this->annotatedTestDao->update($this->entity);
+        $this->entity = $this->annotatedTestDao->find($this->entity->getId());
+        $this->assertEquals(0,count($this->entity->getOneToManyChild()));
 
     }
 

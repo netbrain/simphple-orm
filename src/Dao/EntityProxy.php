@@ -67,6 +67,7 @@ class EntityProxy {
 
     /**
      * @return mixed
+     * FIXME should this also initialize the entity?
      */
     public function getDelegate() {
         return $this->delegate;

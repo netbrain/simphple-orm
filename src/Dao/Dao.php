@@ -48,35 +48,11 @@ abstract class Dao {
      */
     public function create($obj) {
 
-        foreach ($this->tableData->getFieldsWithReference() as $referencedField) {
-            if ($this->tableData->hasPropertyValue($obj, $referencedField)) {
-                $referencedValue = $this->tableData->getPropertyValue($obj, $referencedField);
-                if (is_array($referencedValue)) {
-                    //collection of entities (one-to-many)
-                    foreach ($referencedValue as $entity) {
-                        if($this->isTransient($entity)) {
-                            $this->persistReferencedEntity($entity);
-                            $this->persistOneToManyMapping($obj, $entity, $referencedField);
-                        }
-                    }
-                } else {
-                    //single entity (one-to-one)
-                    if($this->isTransient($referencedValue)){
-                        $this->persistReferencedEntity($referencedValue);
-                    }
-                }
+        list($oneToOneReferences, $oneToManyReferences) = $this->getOneToOneAndOneToManyReferences($obj);
 
-            }
-        }
-
-        $query = $this->tableData->getCreateSQL($obj);
-        $this->runQuery($query);
-
-        if ($this->tableData->getPrimaryKey()->isAutoIncrement()) {
-            $insertId = $this->db->insert_id;
-            $this->setIdValue($obj, $insertId);
-        }
-        $this->setVersion($obj);
+        $this->persistOneToOneReferences($oneToOneReferences);
+        $this->persistEntity($obj);
+        $this->persistOneToManyReferences($obj, $oneToManyReferences);
     }
 
     /**
@@ -144,6 +120,21 @@ abstract class Dao {
         if ($this->isTransient($obj)) {
             throw new \InvalidArgumentException("Cannot update a transient entity");
         }
+
+        foreach ($this->getOneToManyReferences($obj) as $oneToMany){
+            $pk = $this->tableData->getPrimaryKey();
+            /**
+             * @var $referencedField TableField
+             * @var $referencedValue object
+             */
+            list($referencedField,$referencedValue) = $oneToMany;
+            $joinTable = $referencedField->getReference();
+            $sql = $joinTable->getJoinSql($referencedField->getReference()->getFieldThatReferences($this->tableData),$this->getIdValue($obj));
+            //$result = $this->runQuery($sql);
+            //$result = mysqli_fetch_row($result);
+            //TODO Fetch children and then compare with $referencedValue, and either insert new or delete.
+        }
+
         $query = $this->tableData->getUpdateSQL($obj);
         $this->runQuery($query);
 
@@ -401,5 +392,90 @@ abstract class Dao {
      */
     public static function getInstance(){
         return DaoFactory::getDao(get_called_class());
+    }
+
+    /**
+     * @param $oneToOneReferences
+     * @return mixed
+     */
+    private function persistOneToOneReferences($oneToOneReferences) {
+        foreach ($oneToOneReferences as $referencedValue) {
+            //single entity (one-to-one)
+            if ($this->isTransient($referencedValue)) {
+                $this->persistReferencedEntity($referencedValue);
+            }
+        }
+    }
+
+    /**
+     * @param $obj
+     */
+    private function persistEntity($obj) {
+        $query = $this->tableData->getCreateSQL($obj);
+        $this->runQuery($query);
+
+        if ($this->tableData->getPrimaryKey()->isAutoIncrement()) {
+            $insertId = $this->db->insert_id;
+            $this->setIdValue($obj, $insertId);
+        }
+        $this->setVersion($obj);
+    }
+
+    /**
+     * @param $obj
+     * @param $oneToManyReferences
+     */
+    private function persistOneToManyReferences($obj, $oneToManyReferences) {
+        foreach ($oneToManyReferences as $data) {
+            list($referencedField, $referencedValue)  = $data;
+            //collection of entities (one-to-many)
+            foreach ($referencedValue as $entity) {
+                if ($this->isTransient($entity)) {
+                    $this->persistReferencedEntity($entity);
+                    $this->persistOneToManyMapping($obj, $entity, $referencedField);
+                }
+            }
+        }
+    }
+
+    /**
+     * @param $obj
+     * @return array
+     */
+    private function getOneToOneAndOneToManyReferences($obj) {
+        $oneToOneReferences = array();
+        $oneToManyReferences = array();
+
+        foreach ($this->tableData->getFieldsWithReference() as $referencedField) {
+            if ($this->tableData->hasPropertyValue($obj, $referencedField)) {
+                $referencedValue = $this->tableData->getPropertyValue($obj, $referencedField);
+                if (is_array($referencedValue)) {
+                    $oneToManyReferences[] = array($referencedField, $referencedValue);
+                } else {
+                    $oneToOneReferences[] = $referencedValue;
+                }
+
+            }
+        }
+        return array($oneToOneReferences, $oneToManyReferences);
+    }
+
+
+    /**
+     * @param $obj
+     * @return array
+     */
+    private function getOneToManyReferences($obj) {
+        $oneToManyReferences = array();
+
+        foreach ($this->tableData->getFieldsWithReference() as $referencedField) {
+            if ($this->tableData->hasPropertyValue($obj, $referencedField)) {
+                $referencedValue = $this->tableData->getPropertyValue($obj, $referencedField);
+                if (is_array($referencedValue)) {
+                    $oneToManyReferences[] = array($referencedField,$referencedValue);
+                }
+            }
+        }
+        return $oneToManyReferences;
     }
 }

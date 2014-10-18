@@ -361,7 +361,7 @@ class TableData {
 
         if ($field->isReference()) {
             if(is_object($value)){
-                return $field->getReference()->getId($value);
+                $value = $field->getReference()->getId($value);
             }
         }
 
@@ -524,6 +524,7 @@ class TableData {
         return sprintf("SELECT * FROM %s",$this->getName());
     }
 
+
     /**
      * @param $joinField TableField
      * @param $id mixed
@@ -543,6 +544,21 @@ class TableData {
 
     private function getVersion($obj) {
         return $this->getPropertyValue($obj,$this->getVersionField());
+    }
+
+    /**
+     * @param $tableData TableData
+     * @return \SimphpleOrm\Dao\TableField
+     */
+    public function getFieldThatReferences($tableData) {
+        /**
+         * @var $field TableField
+         */
+        foreach($this->getFieldsWithReference() as $field){
+            if($field->getReference() === $tableData){
+                return $field;
+            };
+        }
     }
 
 }
