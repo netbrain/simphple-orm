@@ -28,6 +28,7 @@ class AnnotatedEntityTableDataBuilderTest extends DaoTestCase {
         $this->annotatedTest = new AnnotatedTest();
         $this->annotatedTestDao = new AnnotatedTestDao(self::$db);
         $this->annotatedTableData = TableDataBuilder::build($this->annotatedTestDao->getEntityClass());
+        $this->annotatedTestDao->createTable();
     }
 
 

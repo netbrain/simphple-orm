@@ -29,8 +29,10 @@ class DaoTest extends DaoTestCase {
 
     protected function setUp() {
         DaoFactory::build(self::$db);
-        $this->annotatedTestDao = DaoFactory::getDao("\\SimphpleOrm\\Test\\AnnotatedTestDao");
-        $this->childTestDao = DaoFactory::getDao("\\SimphpleOrm\\Test\\ChildTestDao");
+        $this->annotatedTestDao = AnnotatedTestDao::getInstance();
+        $this->childTestDao = ChildTestDao::getInstance();
+        DaoFactory::createTables();
+
         $this->entity = new AnnotatedTest();
         $this->entity->setString("some-string-value");
     }
@@ -177,6 +179,7 @@ class DaoTest extends DaoTestCase {
 
     public function testCanFetchReferenceFromReference(){
         $dao = ReferenceTestDao::getInstance();
+        $dao->createTable();
         $reference1 = new ReferenceTest();
         $reference2 = new ReferenceTest();
         $reference3 = new ReferenceTest();

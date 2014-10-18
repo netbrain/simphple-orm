@@ -56,7 +56,7 @@ abstract class DaoTestCase extends \PHPUnit_Framework_TestCase {
     }
 
     public static function tearDownAfterClass() {
-        self::runQueryOnAllTables("DROP TABLE %s");
+        DaoFactory::dropTables();
     }
 
     public function tearDown() {

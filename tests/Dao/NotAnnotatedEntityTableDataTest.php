@@ -26,6 +26,7 @@ class NotAnnotatedEntityTableDataTest extends DaoTestCase {
         $this->notAnnotatedTest = new NotAnnotatedTest();
         $this->notAnnotatedTestDao = new NotAnnotatedTestDao(self::$db);
         $this->notAnnotatedTableData = TableDataBuilder::build($this->notAnnotatedTestDao->getEntityClass());
+        $this->notAnnotatedTestDao->createTable();
     }
 
     public function testGetCreateTableSQLFromNotAnnotatedEntity() {
