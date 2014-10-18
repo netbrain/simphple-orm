@@ -105,4 +105,22 @@ class DaoFactory {
         return null;
     }
 
+    public static function createTables() {
+        /**
+         * @var $dao Dao
+         */
+        foreach(self::$instance->daos as $dao){
+            $dao->createTable();
+        }
+    }
+
+    public static function dropTables() {
+        /**
+         * @var $dao Dao
+         */
+        foreach(self::$instance->daos as $dao){
+            $dao->dropTable();
+        }
+    }
+
 } 

@@ -34,12 +34,17 @@ abstract class Dao {
         $this->db = $db;
         $this->reflectionEntityClass = new ReflectionClass($this->getEntityClass());
         $this->tableData = TableDataBuilder::build($this->getEntityClass());
-        $this->runQuery($this->tableData->getCreateTableSQL());
+    }
 
-        foreach($this->tableData->getFieldsWithReference() as $tableField){
-            //FIXME this is run several times for the same table
+    public function createTable(){
+        $this->runQuery($this->tableData->getCreateTableSQL());
+        foreach($this->tableData->getFieldsWithOneToManyRelationship() as $tableField){
             $this->runQuery($tableField->getReference()->getCreateTableSQL());
         }
+    }
+
+    public function dropTable(){
+        $this->runQuery($this->tableData->getDropTableSQL());
     }
 
     /**
