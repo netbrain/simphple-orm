@@ -20,6 +20,11 @@ class ReferenceTest {
     private $reference;
 
     /**
+     * @var ReferenceTest[]
+     */
+    private $references;
+
+    /**
      * @return int
      */
     public function getId() {
@@ -46,6 +51,21 @@ class ReferenceTest {
     public function setReference($reference) {
         $this->reference = $reference;
     }
+
+    /**
+     * @return ReferenceTest[]
+     */
+    public function getReferences() {
+        return $this->references;
+    }
+
+    /**
+     * @param $references ReferenceTest[]
+     */
+    public function setReferences($references) {
+        $this->references = $references;
+    }
+
 
 
 } 

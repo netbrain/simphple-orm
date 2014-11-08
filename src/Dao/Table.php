@@ -4,7 +4,7 @@ namespace SimphpleOrm\Dao;
 
 use Logger;
 
-class TableData {
+class Table {
 
     CONST VERSION_FIELD = '_version';
 
@@ -12,20 +12,26 @@ class TableData {
      * @var Logger
      */
     private $logger;
-    /**
-     * @var TableField[]
-     **/
-    private $fields;
 
     /**
      * @var TableField[]
      **/
-    private $fieldsByFieldName;
+    private $fields = array();
 
     /**
      * @var TableField[]
      **/
-    private $fieldsByPropertyName;
+    private $fieldsByFieldName = array();
+
+    /**
+     * @var TableField[]
+     **/
+    private $fieldsByPropertyName = array();
+
+    /**
+     * @var ForeignKeyConstraint[]
+     */
+    private $foreignKeyConstaints = array();
 
     /**
      * @var TableField
@@ -47,23 +53,35 @@ class TableData {
     private $fieldsSorted = false;
 
     /**
-     * @param $reflectedEntity \ReflectionClass
+     * @var Database
      */
-    function __construct($reflectedEntity) {
+    private $database;
+
+    /**
+     * @param $reflectedEntity \ReflectionClass
+     * @param $database Database
+     */
+    function __construct($reflectedEntity,$database) {
         $this->logger = Logger::getRootLogger();
         $this->reflectedEntity = $reflectedEntity;
-        $this->addField(new TableField(self::VERSION_FIELD, self::VERSION_FIELD, "INT", TableField::NOT_NULL, 1));
+        if($this->isBoundToEntity()){
+            $this->addField(new TableField(self::VERSION_FIELD, self::VERSION_FIELD, "INT", TableField::NOT_NULL, 1));
+        }
+        $this->database = $database;
     }
 
 
     public function addField(TableField $field) {
-        $this->fields[] = $field;
-        $this->fieldsByFieldName[$field->getFieldName()] = $field;
-        $this->fieldsByPropertyName[$field->getPropertyName()] = $field;
+        $this->catalogField($field);
         if ($field->isPrimaryKey()) {
             $this->primaryKey = $field;
         }
         $this->fieldsSorted = false;
+        $field->setTable($this);
+    }
+
+    public function addForeignKeyConstraint(ForeignKeyConstraint $foreignKeyConstraint){
+        $this->foreignKeyConstaints[] = $foreignKeyConstraint;
     }
 
     public function getDropTableSQL() {
@@ -71,7 +89,9 @@ class TableData {
     }
 
     public function getCreateTableSQL() {
-        return sprintf("CREATE TABLE IF NOT EXISTS %s (%s)", $this->getName(), $this->getFieldsDefinitionSQL());
+        $sql = "CREATE TABLE IF NOT EXISTS %s (%s) ENGINE=InnoDB";
+        $sql = sprintf($sql, $this->getName(), $this->getFieldsDefinitionSQL());
+        return $sql;
     }
 
     /**
@@ -91,10 +111,17 @@ class TableData {
     private function getFieldsDefinitionSQL() {
         $this->sortFields();
         $propertiesSql = array();
-        foreach ($this->getLocalFields() as $field) {
+        $constraintsSql = array();
+        $fields = $this->getFields();
+        foreach ($fields as $field) {
             $propertiesSql[] = $this->getFieldDefinitionSQL($field);
+            $constraintsSql[] = $this->getConstaintsSQL($field);
         }
-        return join(',', $propertiesSql);
+
+        $constraintsSql = array_filter($constraintsSql);
+        $sql = join(',', array_merge($propertiesSql,$constraintsSql));
+
+        return $sql;
     }
 
     private function sortFields() {
@@ -121,11 +148,11 @@ class TableData {
                         return -1;
                     }
 
-                    if ($e1->isReference()) {
+                    if ($e1->isForeignKey()) {
                         return 1;
                     }
 
-                    if ($e2->isReference()) {
+                    if ($e2->isForeignKey()) {
                         return -1;
                     }
 
@@ -139,24 +166,51 @@ class TableData {
         }
     }
 
-    private function getFieldDefinitionSQL(TableField $field) {
-        $sqlArray[] = '`' . $field->getFieldName() . '`';
+
+    /**
+     * @param $field TableField
+     * @return string
+     */
+    private function getFieldDefinitionSQL($field) {
+        $sqlArray[] = $this->getSQLFormattedFieldName($field);
         $sqlArray[] = $field->getType();
         $sqlArray[] = $field->isNotNull() ? 'NOT NULL' : false;
         $sqlArray[] = $field->hasDefault() ? 'DEFAULT ' . $field->getDefault() : false;
-        $sqlArray[] = $field->isUnique() ? 'UNIQUE' : false;
-        $sqlArray[] = $field->isPrimaryKey() ? 'PRIMARY KEY' : false;
         $sqlArray[] = $field->isAutoIncrement() ? 'AUTO_INCREMENT' : false;
         $sqlArray = array_filter($sqlArray);
 
         return join(' ', $sqlArray);
     }
 
+    /**
+     * @param $field TableField
+     * @return string
+     */
+    private function getConstaintsSQL($field) {
+        $sqlArray[] = $field->isPrimaryKey() ? "PRIMARY KEY ({$this->getSQLFormattedFieldName($field)})" : false;
+        $sqlArray[] = $field->isUnique() ? "UNIQUE ({$this->getSQLFormattedFieldName($field)})" : false;
+
+        if($fkConstraint = $field->getForeignKeyConstraint()){
+            $primaryKeyField = $fkConstraint->getPrimaryKeyField();
+            $foreignKeyField = $fkConstraint->getForeignKeyField();
+            $tableName = $primaryKeyField->getTable()->getName();
+
+            $sqlArray[] = sprintf("FOREIGN KEY (%s) REFERENCES %s (%s) ON DELETE CASCADE",
+                $this->getSQLFormattedFieldName($foreignKeyField),
+                $tableName,
+                $this->getSQLFormattedFieldName($primaryKeyField)
+                );
+        }
+
+        $sqlArray = array_filter($sqlArray);
+        return join(',', $sqlArray);
+    }
+
     public function getFindSQL($id) {
-        $id = $this->getSQLFormattedValue($id, $this->getPrimaryKey());
-        $fields = $this->getSQLFields($this->getLocalFields());
+        $id = $this->getSQLFormattedValue($id, $this->getPrimaryKeyField());
+        $fields = $this->getSQLFields($this->getFields());
         $query = sprintf('SELECT %s FROM %s WHERE %s = %s LIMIT 1',
-            $fields, $this->getName(), $this->getPrimaryKey()->getFieldName(), $id);
+            $fields, $this->getName(), $this->getPrimaryKeyField()->getFieldName(), $id);
         return $query;
     }
 
@@ -175,13 +229,15 @@ class TableData {
                 $value = var_export($value,true);
             }
             return sprintf("'%s'",$value);
+        }else{
+            throw new \RuntimeException("Unknown type");
         }
     }
 
     /**
      * @return TableField
      */
-    public function getPrimaryKey() {
+    public function getPrimaryKeyField() {
         return $this->primaryKey;
     }
 
@@ -215,8 +271,7 @@ class TableData {
      * @return mixed
      */
     protected function getSQLFormattedFieldName($field) {
-        $name = '`' . $field->getFieldName() . '`';
-        return $name;
+        return '`' . $field->getFieldName() . '`';
     }
 
     /**
@@ -226,19 +281,6 @@ class TableData {
         return $this->fields;
     }
 
-    /**
-     * Get fields local to this table
-     * not one-to-many assosciations
-     */
-    public function getLocalFields(){
-        return array_filter($this->getFields(),function($field){
-            /**
-             * @var $field TableField
-             */
-            return !$field->isOneToMany();
-        });
-    }
-
     function __toString() {
         return $this->getName();
     }
@@ -246,53 +288,37 @@ class TableData {
     /**
      * @return TableField[]
      */
-    public function getFieldsWithReference() {
+    public function getFieldsWithForeignKeyConstraint() {
         return array_filter($this->getFields(), function ($field) {
             /**
              * @var $field TableField
              */
-            return $field->isReference();
+            return $field->isForeignKey();
         });
     }
 
-    /**
-     * @return TableField[]
-     */
-    public function getFieldsWithOneToManyRelationship() {
-        return array_filter($this->getFields(), function ($field) {
-            /**
-             * @var $field TableField
-             */
-            return $field->isOneToMany();
-        });
-    }
+    public function getCreateSQL($obj, $parentId = null, $fkField = null) {
+        $fields = $this->getFields();
 
-
-    /**
-     * @return TableField[]
-     */
-    public function getPrimitiveFields() {
-        return array_filter($this->getFields(), function ($field) {
-            /**
-             * @var $field TableField
-             */
-            return !$field->isReference();
-        });
-    }
-
-    public function getCreateSQL($obj) {
-        $fields = $this->getLocalFields();
-
-        $sqlFields = $this->getSQLFields($fields);
         $fieldValues = array();
         foreach ($fields as $field) {
-            $value = $this->getPropertyValue($obj, $field);
-            $value = $this->getSQLFieldValue($value, $field);
-            $fieldValues[] = $value;
+            if($parentId && $fkField && $field === $fkField){
+                $value = $this->getSQLFieldValue($parentId, $fkField);
+                $fieldValues[] = $value;
+            }else{
+                $value = $this->getPropertyValue($obj, $field);
+                if(is_object($value) || is_array($value)){
+                    $value = null;
+                }
+                $value = $this->getSQLFieldValue($value, $field);
+                $fieldValues[] = $value;
+            }
         }
+
+        $sqlFields = $this->getSQLFields($fields);
         $sqlFieldValues = $this->getSQLInsertValues($fieldValues);
 
-        return sprintf("INSERT INTO {$this->name} (%s) VALUES (%s)", $sqlFields, $sqlFieldValues);
+        return sprintf("INSERT INTO %s (%s) VALUES (%s)",$this->getName(),$sqlFields, $sqlFieldValues);
     }
 
     /**
@@ -316,19 +342,20 @@ class TableData {
             }
             return $field->getDefault();
         } else {
-            if($this->reflectedEntity !== null){
-                $property = $this->reflectedEntity->getProperty($field->getPropertyName());
-                $property->setAccessible(true);
-                $value = $property->getValue($obj);
-                $property->setAccessible(false);
-                return $value;
-            }else{
-                if (property_exists($obj, $field->getPropertyName())) {
-                    return $obj->{$field->getPropertyName()};
+
+            if (property_exists($obj, $field->getPropertyName())) {
+                $reflectionObject = new \ReflectionObject($obj);
+                $property = $reflectionObject->getProperty($field->getPropertyName());
+                if(!$property->isPublic()){
+                    $property->setAccessible(true);
+                    $value = $property->getValue($obj);
+                    $property->setAccessible(false);
+                    return $value;
                 }else{
-                    return null;
+                    return $obj->{$field->getPropertyName()};
                 }
             }
+            return null;
         }
     }
 
@@ -347,6 +374,7 @@ class TableData {
      * @return string
      */
     private function getSQLFieldValue($value, $field) {
+
         if (!isset($value)) {
             if ($field->isPrimaryKey()) {
                 return 'DEFAULT';
@@ -359,11 +387,6 @@ class TableData {
             }
         }
 
-        if ($field->isReference()) {
-            if(is_object($value)){
-                $value = $field->getReference()->getId($value);
-            }
-        }
 
         if (is_bool($value)) {
             return strtoupper(var_export($value, true));
@@ -376,7 +399,7 @@ class TableData {
     }
 
     private function getId($entity) {
-        return $this->getPropertyValue($entity, $this->getPrimaryKey());
+        return $this->getPropertyValue($entity, $this->getPrimaryKeyField());
     }
 
     /**
@@ -393,7 +416,7 @@ class TableData {
             $obj = $obj->getDelegate();
         }
 
-        $fields = $this->getLocalFields();
+        $fields = $this->getFields();
         $idName = $idValue = null;
         $fieldValues = array();
         $oldVersion = null;
@@ -493,8 +516,8 @@ class TableData {
     }
 
     public function getVersionSQL($id) {
-        $id = $this->getSQLFormattedValue($id, $this->getPrimaryKey());
-        return sprintf("SELECT %s FROM %s WHERE %s = %s LIMIT 1", $this->getVersionField()->getFieldName(), $this->getName(), $this->getPrimaryKey()->getFieldName(), $id);
+        $id = $this->getSQLFormattedValue($id, $this->getPrimaryKeyField());
+        return sprintf("SELECT %s FROM %s WHERE %s = %s LIMIT 1", $this->getVersionField()->getFieldName(), $this->getName(), $this->getPrimaryKeyField()->getFieldName(), $id);
 
     }
 
@@ -511,9 +534,9 @@ class TableData {
     }
 
     public function getDeleteSQL($obj) {
-        $id = $this->getSQLFormattedValue($this->getId($obj),$this->getPrimaryKey());
+        $id = $this->getSQLFormattedValue($this->getId($obj),$this->getPrimaryKeyField());
         return sprintf("DELETE FROM %s WHERE %s = %s AND %s = %s",
-            $this->getName(), $this->getPrimaryKey()->getFieldName(),
+            $this->getName(), $this->getPrimaryKeyField()->getFieldName(),
             $id,
             $this->getVersionField()->getFieldName(),
             $this->getVersion($obj));
@@ -526,14 +549,23 @@ class TableData {
 
 
     /**
+     * @param $id
+     * @param $field TableField
+     * @return string
+     */
+    public function getFindByFKSQL($id, $field) {
+        return sprintf("SELECT * FROM %s WHERE %s = %s",$this->getName(),$this->getSQLFormattedFieldName($field),$this->getSQLFormattedValue($id,$field));
+    }
+
+    /**
      * @param $joinField TableField
      * @param $id mixed
      * @return string
      */
     public function getJoinSql($joinField, $id) {
-        $id = $this->getSQLFormattedValue($id,$this->getPrimaryKey());
+        $id = $this->getSQLFormattedValue($id,$this->getPrimaryKeyField());
         $fields = [];
-        foreach($this->getFieldsWithReference() as $field){
+        foreach($this->getFields() as $field){
             if($field !== $joinField){
                 $fields[] = $field;
             }
@@ -547,18 +579,53 @@ class TableData {
     }
 
     /**
-     * @param $tableData TableData
-     * @return \SimphpleOrm\Dao\TableField
+     * @param TableField $field
      */
-    public function getFieldThatReferences($tableData) {
-        /**
-         * @var $field TableField
-         */
-        foreach($this->getFieldsWithReference() as $field){
-            if($field->getReference() === $tableData){
-                return $field;
-            };
+    protected function catalogField(TableField $field) {
+        if(!$this->isBoundToEntity()){
+            $field->setPropertyName(uniqid());
         }
+        $this->fieldsByFieldName[$field->getFieldName()] = $field;
+        $this->fieldsByPropertyName[$field->getPropertyName()] = $field;
+        $this->fields[] = $field;
+
     }
+
+    /**
+     * Retrieve a list of fields relevant for an entity.
+     * The fields relevant to an entity is it's local fields and the remote foreign key fields.
+     * @return TableField[]
+     */
+    public function getEntityFields() {
+        return array_merge(array_filter($this->getFields(),function($field){
+            /**
+             * @var $field TableField
+             */
+            return !$field->isForeignKey();
+        }),$this->getIncomingForeignKeyFields());
+    }
+
+    /**
+     * @return ForeignKeyConstraint[]
+     */
+    public function getForeignKeyConstaints() {
+        return $this->foreignKeyConstaints;
+    }
+
+    /**
+     * @return TableField[]
+     */
+    public function getIncomingForeignKeyFields() {
+        return array_filter(array_map(function($fkConstraint){
+            /**
+             * @var $fkConstraint ForeignKeyConstraint
+             */
+            if($fkConstraint->getPrimaryKeyField() === $this->getPrimaryKeyField()){
+                return $fkConstraint->getForeignKeyField();
+            }
+            return false;
+        },$this->foreignKeyConstaints));
+    }
+
 
 }

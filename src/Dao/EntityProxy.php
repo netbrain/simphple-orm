@@ -2,36 +2,45 @@
 
 namespace SimphpleOrm\Dao;
 
-class EntityProxy {
+class EntityProxy implements Proxy{
 
     private $delegate;
-    private $tableData;
-    private $handledTables;
-    private $initialized;
+    private $field;
 
-    function __construct($delegate, Dao $dao, TableData $tableData, $initialized = true) {
-        $this->initialized = $initialized;
+    function __construct($owner,$delegate, Dao $dao, TableField $field) {
+        $this->owner = $owner;
         $this->delegate = $delegate;
         $this->dao = $dao;
-        $this->reflectionClass = new \ReflectionClass($this->delegate);
-        $this->tableData = $tableData;
-        $this->handledTables = array();
+        $this->reflectionClass = new \ReflectionClass($dao->getEntityClass());
+        $this->field = $field;
+        }
+
+    function __get($name) {
+        if($name == Dao::CACHE || $name == Dao::VERSION){
+            $this->initialize();
+            return $this->getDelegate()->{$name};
+        }else{
+            $property = $this->reflectionClass->getProperty($name);
+            $value = $property->getValue($this->delegate);
+            return $value;
+        }
     }
+
 
     function __call($name, $arguments) {
         if (!method_exists($this->delegate, $name)) {
             throw new \Exception("Method '$name' doesn't exist on class: " . get_class($this->delegate));
         }
 
-        if (!$this->initialized) {
-            $this->initialize();
-        }
-
         if (strpos($name, 'get') === 0) {
             $propertyName = lcfirst(substr($name, 3));
-            $tableField = $this->tableData->getTableFieldByPropertyName($propertyName);
 
-            if ($tableField->isReference()) {
+            if(!$this->isInitialized()){
+                $this->initialize();
+            }
+            $tableField = $this->field->getTable()->getTableFieldByPropertyName($propertyName);
+
+            if ($tableField->isForeignKey()) {
                 /**
                  * @var $referencedEntity EntityProxy
                  */
@@ -44,16 +53,11 @@ class EntityProxy {
         return call_user_func_array(array($this->delegate, $name), $arguments);
     }
 
-    public function initialize() {
-        $this->dao->refresh($this->delegate);
-        $this->initialized = true;
-    }
-
     /**
      * @param $name string
      * @return mixed
      */
-    public function getDelegatePropertyValue($name) {
+    private function getDelegatePropertyValue($name) {
         $property = $this->reflectionClass->getProperty($name);
         $property->setAccessible(true);
         $value = $property->getValue($this->delegate);
@@ -61,15 +65,30 @@ class EntityProxy {
         return $value;
     }
 
-    private function isInitialized() {
-        return $this->initialized;
+    public function isInitialized() {
+        if(!isset($this->delegate->{Dao::VERSION})){
+            return false;
+        }
+        return true;
+    }
+
+
+    public function initialize(){
+        if(!$this->isInitialized()){
+            $table = $this->field->getTable();
+            $id = $table->getPropertyValue($this->owner,$table->getPrimaryKeyField());
+            $this->dao->__refreshByFK($this->delegate,$id,$this->field->getForeignKeyConstraint());
+            ProxyUtils::swap($this->owner,$this->delegate,$this->field);
+        }
     }
 
     /**
      * @return mixed
-     * FIXME should this also initialize the entity?
      */
     public function getDelegate() {
         return $this->delegate;
     }
+
+
+
 } 

@@ -4,7 +4,6 @@ INSERT INTO Test (
   `some-float`,
   `some-integer`,
   `some-string`,
-  `one_to_one_child`,
   `_version`
 ) VALUES (
   '%s',
@@ -12,6 +11,5 @@ INSERT INTO Test (
   0.019284,
   NULL,
   'some string',
-  NULL,
   1
 )

@@ -7,8 +7,6 @@ use SimphpleOrm\Test\AnnotatedTest;
 use SimphpleOrm\Test\AnnotatedTestDao;
 use SimphpleOrm\Test\ChildTest;
 use SimphpleOrm\Test\ChildTestDao;
-use SimphpleOrm\Test\ReferenceTest;
-use SimphpleOrm\Test\ReferenceTestDao;
 use Symfony\Component\Process\Exception\RuntimeException;
 
 class DaoTest extends DaoTestCase {
@@ -28,10 +26,10 @@ class DaoTest extends DaoTestCase {
     private $entity;
 
     protected function setUp() {
-        DaoFactory::build(self::$db);
-        $this->annotatedTestDao = AnnotatedTestDao::getInstance();
-        $this->childTestDao = ChildTestDao::getInstance();
-        DaoFactory::createTables();
+        parent::setUp();
+        $this->annotatedTestDao = AnnotatedTestDao::getInstance($this->daoFactory);
+        $this->childTestDao = ChildTestDao::getInstance($this->daoFactory);
+        $this->daoFactory->createTables();
 
         $this->entity = new AnnotatedTest();
         $this->entity->setString("some-string-value");
@@ -55,6 +53,16 @@ class DaoTest extends DaoTestCase {
         $this->assertNull($this->entity);
     }
 
+    public function testCreateEntityHasCacheProperty() {
+        $this->annotatedTestDao->create($this->entity);
+        $this->assertNotNull($this->entity->{Dao::CACHE});
+        /**
+         * @var $dbEntity AnnotatedTest
+         */
+        $dbEntity = $this->annotatedTestDao->find($this->entity->getId());
+        $this->assertNotNull($dbEntity->{Dao::CACHE});
+    }
+
     public function testCreateEntityWithData() {
         $this->entity->setOneToOneChild(new ChildTest());
         $this->entity->setBoolean(true);
@@ -69,14 +77,13 @@ class DaoTest extends DaoTestCase {
         $dbEntity = $this->annotatedTestDao->find($this->entity->getId());
 
         $this->assertEquals($this->entity->getId(), $dbEntity->getId());
-        $this->assertEquals($this->entity->getOneToOneChild()->getId(), $dbEntity->getOneToOneChild()->getId());
-        $this->assertEquals($this->entity->getOneToOneChild()->getString(), $dbEntity->getOneToOneChild()->getString());
         $this->assertEquals($this->entity->isBoolean(), $dbEntity->isBoolean());
         $this->assertEquals($this->entity->getFloat(), $dbEntity->getFloat());
         $this->assertEquals($this->entity->getString(), $dbEntity->getString());
         $this->assertNotEquals($this->entity->getTransient(), $dbEntity->getTransient());
         $this->assertEquals($this->entity->getInt(), $dbEntity->getInt());
-        $dbEntity->setOneToManyChild($this->annotatedTestDao->initializeCollection($dbEntity->getOneToManyChild()));
+        $this->annotatedTestDao->initializeDeep($dbEntity);
+        $this->assertEquals($this->entity->getOneToOneChild(),$dbEntity->getOneToOneChild());
         $this->assertEquals($this->entity->getOneToManyChild(),$dbEntity->getOneToManyChild());
     }
 
@@ -177,45 +184,33 @@ class DaoTest extends DaoTestCase {
         }
     }
 
-    public function testCanFetchReferenceFromReference(){
-        $dao = ReferenceTestDao::getInstance();
-        $dao->createTable();
-        $reference1 = new ReferenceTest();
-        $reference2 = new ReferenceTest();
-        $reference3 = new ReferenceTest();
-
-        $reference1->setReference($reference2);
-        $reference2->setReference($reference3);
-
-        $dao->create($reference1);
-
-        /**
-         * @var $ref ReferenceTest
-         */
-        $ref = $dao->find($reference1->getId());
-        $this->assertEquals($reference1->getId(),$ref->getId());
-        $ref = $ref->getReference();
-        $this->assertEquals($reference2->getId(),$ref->getId());
-        $ref = $ref->getReference();
-        $this->assertEquals($reference3->getId(),$ref->getId());
-        $ref = $ref->getReference();
-        $this->assertNull($ref);
-    }
-
-    public function testCanUpdateOneToManyCollection(){
+    public function testCanRemoveOneElementFromOneToManyCollection(){
         $this->entity->setOneToManyChild(array(new ChildTest()));
         $this->annotatedTestDao->create($this->entity);
+
         $this->entity = $this->annotatedTestDao->find($this->entity->getId());
         $this->assertEquals(1,count($this->entity->getOneToManyChild()));
-        $this->entity->setOneToManyChild(array());
+
+        $this->entity->setOneToManyChild(null);
         $this->annotatedTestDao->update($this->entity);
+
+        $this->entity = $this->annotatedTestDao->find($this->entity->getId());
+        $this->assertEquals(0,count($this->entity->getOneToManyChild()));
+    }
+
+    public function testCanAddOneElementFromOneToManyCollection(){
+        $this->entity->setOneToManyChild(null);
+        $this->annotatedTestDao->create($this->entity);
+
         $this->entity = $this->annotatedTestDao->find($this->entity->getId());
         $this->assertEquals(0,count($this->entity->getOneToManyChild()));
 
+        $this->entity->setOneToManyChild(array(new ChildTest()));
+        $this->annotatedTestDao->update($this->entity);
+
+        $this->entity = $this->annotatedTestDao->find($this->entity->getId());
+        $this->assertEquals(1,count($this->entity->getOneToManyChild()));
     }
-
-
-
 }
 
 

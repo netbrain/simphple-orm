@@ -4,10 +4,6 @@ namespace SimphpleOrm\Dao;
 
 class DaoFactory {
 
-    /**
-     * @var DaoFactory
-     */
-    private static $instance;
 
     /**
      * @var Dao[]
@@ -20,17 +16,15 @@ class DaoFactory {
     private $daosByEntity = array();
 
     /**
-     * @var \mysqli
+     * @var Database
      */
-    private $mysqli;
+    private $database;
 
-    private function __construct(\mysqli $mysqli = null) {
-        $this->mysqli = $mysqli;
-        foreach (get_declared_classes() as $class) {
-            if ($this->isDao($class)) {
-                $this->registerDao($class);
-            }
-        }
+    /**
+     * @param Database $database
+     */
+    public  function __construct(Database $database) {
+        $this->database = $database;
     }
 
     /**
@@ -62,16 +56,9 @@ class DaoFactory {
      * @return Dao
      */
     private function createDao($class) {
-        return (new \ReflectionClass($class))->newInstance($this->mysqli);
+        return (new \ReflectionClass($class))->newInstance($this->database,$this);
     }
 
-    public static function build(\mysqli $mysqli) {
-        if (!isset(self::$instance)) {
-            self::$instance = new DaoFactory($mysqli);
-        }
-
-        return self::$instance;
-    }
 
     /**
      * @deprecated Use Dao::getInstance() instead.
@@ -79,13 +66,13 @@ class DaoFactory {
      * @throws \Exception
      * @return Dao
      */
-    public static function getDao($class) {
+    public function getDao($class) {
         $class = ltrim($class, '\\');
-        if (self::$instance->isDao($class)) {
-            self::$instance->registerDao($class);
+        if ($this->isDao($class)) {
+            $this->registerDao($class);
         }
-        if (array_key_exists($class, self::$instance->daos)) {
-            return self::$instance->daos[$class];
+        if (array_key_exists($class, $this->daos)) {
+            return $this->daos[$class];
         }
         throw new \Exception("No DAO class found for '$class'");
     }
@@ -94,33 +81,20 @@ class DaoFactory {
      * @param $class string|object
      * @return null|Dao
      */
-    public static function getDaoFromEntity($class) {
+    public function getDaoFromEntity($class) {
         if (!is_string($class)) {
             $class = get_class($class);
         }
         $class = ltrim($class, '\\');
-        if (array_key_exists($class, self::$instance->daosByEntity)) {
-            return self::$instance->daosByEntity[$class];
+        if (array_key_exists($class, $this->daosByEntity)) {
+            return $this->daosByEntity[$class];
         }
         return null;
     }
 
-    public static function createTables() {
-        /**
-         * @var $dao Dao
-         */
-        foreach(self::$instance->daos as $dao){
+    public function createTables() {
+        foreach($this->daos as $dao){
             $dao->createTable();
         }
     }
-
-    public static function dropTables() {
-        /**
-         * @var $dao Dao
-         */
-        foreach(self::$instance->daos as $dao){
-            $dao->dropTable();
-        }
-    }
-
-} 
+}

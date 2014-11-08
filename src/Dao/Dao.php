@@ -9,55 +9,55 @@ use stdClass;
 
 abstract class Dao {
 
+    const CACHE = '_cache';
+    const TRANSIENT_PREFIX = "\$_";
+    const VERSION = Table::VERSION_FIELD;
+
     /**
      * @var Logger
      */
     protected $logger;
 
     /**
-     * @var \mysqli
+     * @var Database
      */
-    protected $db;
+    protected $database;
 
     /**
-     * @var TableData
+     * @var Table
      */
-    protected $tableData;
+    protected $table;
 
     /**
      * @var \ReflectionClass
      */
     protected $reflectionEntityClass;
 
-    function __construct(\mysqli $db) {
+    /**
+     * @var DaoFactory
+     */
+    protected $daoFactory;
+
+    function __construct(Database $database,DaoFactory $daoFactory) {
         $this->logger = Logger::getLogger("main");
-        $this->db = $db;
+        $this->database = $database;
         $this->reflectionEntityClass = new ReflectionClass($this->getEntityClass());
-        $this->tableData = TableDataBuilder::build($this->getEntityClass());
+        $this->table = $database->build($this->getEntityClass());
+        $this->daoFactory = $daoFactory;
     }
 
     public function createTable(){
-        $this->runQuery($this->tableData->getCreateTableSQL());
-        foreach($this->tableData->getFieldsWithOneToManyRelationship() as $tableField){
-            $this->runQuery($tableField->getReference()->getCreateTableSQL());
-        }
-    }
-
-    public function dropTable(){
-        $this->runQuery($this->tableData->getDropTableSQL());
+        $this->runQuery($this->table->getCreateTableSQL());
     }
 
     /**
      * Creates an entity in the database
      * @param $obj
+     * @return mixed
      */
     public function create($obj) {
-
-        list($oneToOneReferences, $oneToManyReferences) = $this->getOneToOneAndOneToManyReferences($obj);
-
-        $this->persistOneToOneReferences($oneToOneReferences);
-        $this->persistEntity($obj);
-        $this->persistOneToManyReferences($obj, $oneToManyReferences);
+        $id = $this->persistEntity($obj);
+        return $id;
     }
 
     /**
@@ -80,9 +80,9 @@ abstract class Dao {
      * @return null|object
      */
     public function delete($obj) {
-        $query = $this->tableData->getDeleteSQL($obj);
+        $query = $this->table->getDeleteSQL($obj);
         $this->runQuery($query);
-        if(!mysqli_affected_rows($this->db) > 0){
+        if(!mysqli_affected_rows($this->database->getMysqli()) > 0){
             throw new \RuntimeException("Nothing was deleted, might be due to optimistic locking failure or simply that the entity no longer exists");
         }
     }
@@ -91,7 +91,7 @@ abstract class Dao {
      * Refreshes an entity from the database;
      * @param $obj
      */
-    public function refresh(&$obj) {
+    public function refresh($obj) {
         $entity = $this->findEntity($this->getIdValue($obj));
         if($entity == null){
             throw new \RuntimeException("Cannot refresh this entity, it seem's it doesn't exist anymore!");
@@ -100,17 +100,53 @@ abstract class Dao {
     }
 
     /**
+     * @param $destination object|array
+     * @param $id
+     * @param $fkConstraint ForeignKeyConstraint
+     */
+    public function __refreshByFK(&$destination, $id, $fkConstraint) {
+        $query = $this->table->getFindByFKSQL($id,$fkConstraint->getForeignKeyField());
+
+        $result = $this->runQuery($query);
+        if($result) {
+            if ($fkConstraint->isOneToOne()) {
+                if(mysqli_num_rows($result) == 1){
+                    $obj = mysqli_fetch_object($result);
+                    $this->cast($obj, $destination);
+                }else{
+                    $destination = null;
+                }
+            } else if ($fkConstraint->isOneToMany()) {
+                if(mysqli_num_rows($result) >= 1){
+                    while($obj = mysqli_fetch_object($result)){
+                        $element = $this->table->getEntityInstance();
+                        $this->cast($obj,$element);
+                        if(is_array($destination)){
+                            $destination[] = $element;
+                        }else if($destination instanceof \ArrayObject){
+                            $destination->append($element);
+                        }else {
+                            throw new \RuntimeException("Invalid destination");
+                        }
+                    }
+                }else{
+                    $destination = array();
+                }
+            }
+        }
+
+    }
+
+    /**
      * Retrieves all entities from the database
-     * FIXME needs optimization
      * @return array
      */
     public function all() {
-        $query = $this->tableData->getAllSQL();
+        $query = $this->table->getAllSQL();
         $result = $this->runQuery($query);
 
         $entities = array();
         while ($obj = $result->fetch_object()) {
-            $this->addRelatedDataToObj($obj);
             $entities[] = $entity = $this->cast($obj);
         }
 
@@ -126,29 +162,66 @@ abstract class Dao {
             throw new \InvalidArgumentException("Cannot update a transient entity");
         }
 
-        foreach ($this->getOneToManyReferences($obj) as $oneToMany){
-            $pk = $this->tableData->getPrimaryKey();
-            /**
-             * @var $referencedField TableField
-             * @var $referencedValue object
-             */
-            list($referencedField,$referencedValue) = $oneToMany;
-            $joinTable = $referencedField->getReference();
-            $sql = $joinTable->getJoinSql($referencedField->getReference()->getFieldThatReferences($this->tableData),$this->getIdValue($obj));
-            //$result = $this->runQuery($sql);
-            //$result = mysqli_fetch_row($result);
-            //TODO Fetch children and then compare with $referencedValue, and either insert new or delete.
+        foreach ($this->getOneToManyReferences($obj) as $oneToManyFields){
+            $this->handleOneToManyChanges($obj,$oneToManyFields);
         }
 
-        $query = $this->tableData->getUpdateSQL($obj);
+        $query = $this->table->getUpdateSQL($obj);
         $this->runQuery($query);
 
-        if (!mysqli_affected_rows($this->db) > 0) {
+        if (!mysqli_affected_rows($this->database->getMysqli()) > 0) {
             throw new \RuntimeException("No rows updated by update query! either row has been deleted or another version was committed");
         }else{
             //increment version
-            $versionPropertyName = $this->tableData->getVersionField()->getPropertyName();
+            $versionPropertyName = $this->table->getVersionField()->getPropertyName();
             $obj->{$versionPropertyName}++;
+        }
+    }
+
+    public function initialize($entityOrCollection){
+        if($entityOrCollection == null){
+            return;
+        }
+        if(is_array($entityOrCollection)){
+            foreach($entityOrCollection as $entity){
+                if(!$this->isInitialized($entity)){
+                    $this->initialize($entity);
+                }
+            }
+        }else {
+            if ($entityOrCollection instanceof Proxy) {
+                if (!$entityOrCollection->isInitialized()) {
+                    $entityOrCollection->initialize();
+                }
+            }
+        }
+    }
+
+    public function isInitialized($entityOrCollection) {
+        if(is_array($entityOrCollection)){
+            foreach($entityOrCollection as $entity){
+                if(!$this->isInitialized($entity)){
+                    return false;
+                }
+            }
+            return true;
+        }else{
+            return !($entityOrCollection instanceof Proxy);
+        }
+    }
+
+    /**
+     * Initializes an entity with two levels of data
+     * @param $entity
+     */
+    public function initializeDeep($entity){
+        $this->initialize($entity);
+        foreach($this->table->getIncomingForeignKeyFields() as $field){
+            $value = $this->table->getPropertyValue($entity,$field);
+            if($value == null){
+                continue;
+            }
+            $this->initializeDeep($value);
         }
     }
 
@@ -158,7 +231,7 @@ abstract class Dao {
      * @return bool
      */
     public function isTransient($entity) {
-        return !property_exists($entity, $this->tableData->getVersionField()->getPropertyName());
+        return !property_exists($entity, $this->table->getVersionField()->getPropertyName());
     }
 
     /**
@@ -169,13 +242,13 @@ abstract class Dao {
      */
     private function getIdValue($entity, $tableData = null) {
         if (is_null($tableData)) {
-            $tableData = $this->tableData;
+            $tableData = $this->table;
         }
-        return $tableData->getPropertyValue($entity, $tableData->getPrimaryKey()->getPropertyName());
+        return $tableData->getPropertyValue($entity, $tableData->getPrimaryKeyField());
     }
 
     private function setVersion($obj, $version = null) {
-        $versionField = $this->tableData->getVersionField();
+        $versionField = $this->table->getVersionField();
 
         if (is_null($version)) {
             $version = $versionField->getDefault();
@@ -185,15 +258,20 @@ abstract class Dao {
     }
 
     /**
-     * @param $referencedValue
+     * @param $parent
+     * @param $child
+     * @param $parentField TableField
      */
-    private function persistReferencedEntity($referencedValue) {
-        $dao = DaoFactory::getDaoFromEntity($referencedValue);
+    private function persistReferencedEntity($parent,$child,$parentField) {
+        $dao = $this->daoFactory->getDaoFromEntity($child);
         if (is_null($dao)) {
-            throw new \RuntimeException("Unhandled entity type: " . get_class($referencedValue));
+            throw new \RuntimeException("Unhandled entity type: " . get_class($child));
         }
 
-        $dao->create($referencedValue);
+        $childField = $dao->table->getTableFieldByFieldName($parentField->getFieldName());
+
+        $dao->persistEntity($child,$this->getIdValue($parent),$childField);
+
     }
 
     /**
@@ -203,18 +281,20 @@ abstract class Dao {
      */
     private function setIdValue($entity, $value, $tableData = null) {
         if (is_null($tableData)) {
-            $tableData = $this->tableData;
+            $tableData = $this->table;
         }
-        $tableData->setPropertyValue($entity, $tableData->getPrimaryKey()->getPropertyName(), $value);
+        $tableData->setPropertyValue($entity, $tableData->getPrimaryKeyField()->getPropertyName(), $value);
     }
 
     /**
-     * @param $value
-     * @param $propertyName
+     * @param $tableField TableField
+     * @param $value object
+     * @param $propertyName string
+     * @param $destination object
      * @return mixed|EntityProxy
      */
-    private function getPropertyValue($value, $propertyName) {
-        $tableField = $this->tableData->getTableFieldByPropertyName($propertyName);
+    private function setPropertyValue($tableField,$value, $propertyName, $destination) {
+
         if (!is_null($value)) {
             if ($tableField->isNumericType()) {
                 settype($value, "float");
@@ -223,34 +303,32 @@ abstract class Dao {
             } elseif ($tableField->isStringType()) {
                 settype($value, "string");
             }
+        }
 
-            if ($tableField->isReference()) {
-                if($tableField->isOneToMany()){
-                    $joinTableFields = $tableField->getReference()->getFieldsWithReference();
-                    $childField = null;
-                    assert(count($joinTableFields) === 2);
-                    foreach($joinTableFields as $jField){
-                        if($jField->getReference()->getEntityClassName() !== $this->tableData->getEntityClassName()){
-                            $childField = $jField;
-                            break;
-                        }
-                    }
-
-                    foreach($value as &$v){
-                        $referencedTableData = $childField->getReference();
-                        $entity = $referencedTableData->getEntityInstance();
-                        $this->setIdValue($entity, $v, $referencedTableData);
-                        $v = new EntityProxy($entity, DaoFactory::getDaoFromEntity($entity), $referencedTableData, false);
-                    }
-                }else{
-                    $referencedTableData = $tableField->getReference();
-                    $entity = $referencedTableData->getEntityInstance();
-                    $this->setIdValue($entity, $value, $referencedTableData);
-                    $value = new EntityProxy($entity, DaoFactory::getDaoFromEntity($entity), $referencedTableData, false);
-                }
+        if ($fkConstraint = $tableField->getForeignKeyConstraint()) {
+            if ($fkConstraint->isOneToMany()) {
+                $referencedTableData = $fkConstraint->getForeignKeyField()->getTable();
+                $entity = $referencedTableData->getEntityInstance();
+                $value = new CollectionProxy($destination, $this->daoFactory->getDaoFromEntity($entity), $tableField);
+            } else {
+                $referencedTableData = $fkConstraint->getForeignKeyField()->getTable();
+                $entity = $referencedTableData->getEntityInstance();
+                $value = new EntityProxy($destination, $entity, $this->daoFactory->getDaoFromEntity($entity), $tableField);
             }
         }
-        return $value;
+
+        if ($this->reflectionEntityClass->hasProperty($propertyName)) {
+            $property = $this->reflectionEntityClass->getProperty($propertyName);
+            if (!$property->isPublic()) {
+                $property->setAccessible(true);
+                $property->setValue($destination, $value);
+                $property->setAccessible(false);
+            } else {
+                $property->setValue($destination, $value);
+            }
+        } else{
+            $destination->{$propertyName} = $value;
+        }
     }
 
     /**
@@ -267,29 +345,19 @@ abstract class Dao {
             $destination = $this->reflectionEntityClass->newInstanceWithoutConstructor();
         }
 
-        foreach ($this->tableData->getFields() as $field) {
-            $fieldName = $field->getFieldName();
+        $entityFields = $this->table->getEntityFields();
+        foreach ($entityFields as $field) {
             $propertyName = $field->getPropertyName();
+            $fieldName = $field->getFieldName();
 
-            if($sourceReflection->hasProperty($fieldName)){
+            $value = null;
+            if ($sourceReflection->hasProperty($fieldName)) {
                 $sourceProperty = $sourceReflection->getProperty($fieldName);
-                if ($this->reflectionEntityClass->hasProperty($propertyName)) {
-                    $property = $this->reflectionEntityClass->getProperty($propertyName);
-                    if ($property->isPrivate() || $property->isProtected()) {
-                        $property->setAccessible(true);
-                        $value = $this->getPropertyValue($sourceProperty->getValue($source), $propertyName);
-                        $property->setValue($destination, $value);
-                        $property->setAccessible(false);
-                    } else {
-                        $value = $this->getPropertyValue($sourceProperty->getValue($source), $propertyName);
-                        $property->setValue($destination, $value);
-                    }
-                } else {
-                    $destination->$propertyName = $this->getPropertyValue($sourceProperty->getValue($source), $propertyName);
-                }
+                $value = $sourceProperty->getValue($source);
             }
-
+            $this->setPropertyValue($field, $value, $propertyName, $destination);
         }
+        $this->setCache($destination);
         return $destination;
     }
 
@@ -298,7 +366,7 @@ abstract class Dao {
      * @return null|object|stdClass
      */
     private function findEntity($id) {
-        $query = $this->tableData->getFindSQL($id);
+        $query = $this->table->getFindSQL($id);
         $result = $this->runQuery($query);
 
         if (!$result || mysqli_num_rows($result) == 0) {
@@ -306,7 +374,6 @@ abstract class Dao {
         }
 
         $obj = $result->fetch_object();
-        $this->addRelatedDataToObj($obj);
 
         return $obj;
     }
@@ -318,9 +385,10 @@ abstract class Dao {
      */
     protected function runQuery($query) {
         $this->logger->info("Ran query: " . $query);
-        $result = $this->db->query($query);
+        $mysqli = $this->database->getMysqli();
+        $result = $mysqli->query($query);
         if (!$result) {
-            throw new \RuntimeException("query failed: $query, error no: " . $this->db->errno . ", error:" . $this->db->error);
+            throw new \RuntimeException("query failed: $query, error no: " . $mysqli->errno . ", error:" . $mysqli->error);
         }
         return $result;
     }
@@ -331,156 +399,161 @@ abstract class Dao {
      */
     public abstract function getEntityClass();
 
+
+    /**
+     * @param $daoFactory DaoFactory
+     * @return self
+     */
+    public static function getInstance($daoFactory){
+        return $daoFactory->getDao(get_called_class());
+    }
+
     /**
      * @param $parent
-     * @param $child
-     * @param $referencedField TableField
-     */
-    private function persistOneToManyMapping($parent, $child, $referencedField) {
-        $data = new stdClass();
-        $joinTable = $referencedField->getReference();
-
-
-        foreach($referencedField->getReference()->getFieldsWithReference() as $foreignKeyField){
-            foreach([$parent,$child] as $entity){
-                if($foreignKeyField->getReference()->getEntityClassName() === get_class($entity)){
-                    $data->{$foreignKeyField->getPropertyName()} = $this->getIdValue($entity,$foreignKeyField->getReference());
-                }
-            }
-        }
-
-        $query = $joinTable->getCreateSQL($data);
-        $this->runQuery($query);
-    }
-
-    /**
-     * @param $entities
-     */
-    public function initializeCollection($entities){
-        foreach($entities as $key => $entity){
-            if($entity instanceof EntityProxy){
-                $entity->initialize();
-                $entities[$key] = $entity->getDelegate();
-            }
-        }
-        return $entities;
-    }
-
-    /**
-     * @param $obj
-     */
-    private function addRelatedDataToObj($obj) {
-        if($obj == null){
-            throw new \InvalidArgumentException();
-        }
-        $fields = $this->tableData->getFieldsWithOneToManyRelationship();
-        foreach ($fields as $field) {
-            $joinField = null;
-            $joinTableFields = $field->getReference()->getFieldsWithReference();
-            assert(count($joinTableFields) === 2);
-            foreach ($joinTableFields as $jField) {
-                if ($jField->getReference()->getEntityClassName() === $this->tableData->getEntityClassName()) {
-                    $joinField = $jField;
-                }
-            }
-            $joinQuery = $field->getReference()->getJoinSql($joinField, $obj->{$this->tableData->getPrimaryKey()->getFieldName()});
-            $joinResult = $this->runQuery($joinQuery);
-            while ($row = $joinResult->fetch_row()) {
-                $obj->{$field->getPropertyName()}[] = $row[0];
-            }
-        }
-    }
-
-    /**
-     * @return self
-     * @throws \Exception
-     */
-    public static function getInstance(){
-        return DaoFactory::getDao(get_called_class());
-    }
-
-    /**
-     * @param $oneToOneReferences
      * @return mixed
      */
-    private function persistOneToOneReferences($oneToOneReferences) {
-        foreach ($oneToOneReferences as $referencedValue) {
-            //single entity (one-to-one)
-            if ($this->isTransient($referencedValue)) {
-                $this->persistReferencedEntity($referencedValue);
+    private function persistReferences($parent) {
+        foreach ($this->getForeignKeyReferences($parent) as $data) {
+            list($referencedField, $referencedValue) = $data;
+            if(is_array($referencedValue)){
+                foreach($referencedValue as $refVal){
+                    $this->persistReference($parent, $refVal, $referencedField);
+                }
+            }else{
+                $this->persistReference($parent, $referencedValue, $referencedField);
             }
         }
     }
 
     /**
      * @param $obj
+     * @param $parentId
+     * @param $fkField TableField
+     * @return mixed
      */
-    private function persistEntity($obj) {
-        $query = $this->tableData->getCreateSQL($obj);
+    private function persistEntity($obj,$parentId = null, $fkField = null) {
+        $query = $this->table->getCreateSQL($obj, $parentId, $fkField);
         $this->runQuery($query);
 
-        if ($this->tableData->getPrimaryKey()->isAutoIncrement()) {
-            $insertId = $this->db->insert_id;
+        if ($this->table->getPrimaryKeyField()->isAutoIncrement()) {
+            $insertId = $this->database->getMysqli()->insert_id;
             $this->setIdValue($obj, $insertId);
         }
         $this->setVersion($obj);
-    }
+        $this->setCache($obj);
 
-    /**
-     * @param $obj
-     * @param $oneToManyReferences
-     */
-    private function persistOneToManyReferences($obj, $oneToManyReferences) {
-        foreach ($oneToManyReferences as $data) {
-            list($referencedField, $referencedValue)  = $data;
-            //collection of entities (one-to-many)
-            foreach ($referencedValue as $entity) {
-                if ($this->isTransient($entity)) {
-                    $this->persistReferencedEntity($entity);
-                    $this->persistOneToManyMapping($obj, $entity, $referencedField);
-                }
-            }
-        }
-    }
+        $this->persistReferences($obj);
 
-    /**
-     * @param $obj
-     * @return array
-     */
-    private function getOneToOneAndOneToManyReferences($obj) {
-        $oneToOneReferences = array();
-        $oneToManyReferences = array();
-
-        foreach ($this->tableData->getFieldsWithReference() as $referencedField) {
-            if ($this->tableData->hasPropertyValue($obj, $referencedField)) {
-                $referencedValue = $this->tableData->getPropertyValue($obj, $referencedField);
-                if (is_array($referencedValue)) {
-                    $oneToManyReferences[] = array($referencedField, $referencedValue);
-                } else {
-                    $oneToOneReferences[] = $referencedValue;
-                }
-
-            }
-        }
-        return array($oneToOneReferences, $oneToManyReferences);
+        return $this->getIdValue($obj);
     }
 
 
     /**
      * @param $obj
      * @return array
+     */
+    private function getForeignKeyReferences($obj) {
+        $references = array();
+
+        foreach ($this->table->getIncomingForeignKeyFields() as $referencedField) {
+            if ($this->table->hasPropertyValue($obj, $referencedField)) {
+                $referencedValue = $this->table->getPropertyValue($obj, $referencedField);
+                $references[] = array($referencedField,$referencedValue);
+            }
+        }
+        return $references;
+    }
+
+
+    /**
+     * @param $obj
+     * @return TableField[]
      */
     private function getOneToManyReferences($obj) {
         $oneToManyReferences = array();
-
-        foreach ($this->tableData->getFieldsWithReference() as $referencedField) {
-            if ($this->tableData->hasPropertyValue($obj, $referencedField)) {
-                $referencedValue = $this->tableData->getPropertyValue($obj, $referencedField);
-                if (is_array($referencedValue)) {
-                    $oneToManyReferences[] = array($referencedField,$referencedValue);
+        foreach ($this->table->getIncomingForeignKeyFields() as $referencedField) {
+            if ($fkConstraint = $referencedField->getForeignKeyConstraint()) {
+                if($fkConstraint->isOneToMany()){
+                    $oneToManyReferences[] = $referencedField;
                 }
             }
         }
         return $oneToManyReferences;
+    }
+
+    private function setCache($obj) {
+        $obj->{self::CACHE} = clone $obj;
+    }
+
+    private function getCache($obj){
+        return $obj->{self::CACHE};
+    }
+
+    /**
+     * @param $parentEntity object
+     * @param $parentField TableField
+     * @return bool
+     */
+    private function handleOneToManyChanges($parentEntity, $parentField) {
+
+        $a = $this->table->getPropertyValue($parentEntity,$parentField);
+        if($a == null){
+            $a = array();
+        }
+        foreach (array_keys($a) as $key){
+            $child = $a[$key];
+            unset($a[$key]);
+            if($child instanceof EntityProxy){
+                $child = $child->getDelegate();
+            }
+            $id = $this->daoFactory->getDaoFromEntity($child)->getIdValue($child);
+            if($id == null){
+                $id = uniqid(self::TRANSIENT_PREFIX);
+            }
+            $a[$id] = $child;
+        }
+
+        $b = $this->table->getPropertyValue($this->getCache($parentEntity),$parentField);
+        if($b == null){
+            $b = array();
+        }
+        foreach (array_keys($b) as $key){
+            $child = $b[$key];
+            unset($b[$key]);
+            if($child instanceof EntityProxy){
+                $child = $child->getDelegate();
+            }
+            $id = $this->daoFactory->getDaoFromEntity($child)->getIdValue($child);
+            if($id == null){
+                $id = uniqid(self::TRANSIENT_PREFIX);
+            }
+            $b[$id] = $child;
+        }
+
+        $valuesAdded = array_diff_key($a,$b);
+        $valuesDeleted = array_diff_key($b,$a);
+
+        foreach($valuesAdded as $value){
+            $this->persistReferencedEntity($parentEntity,$value,$parentField);
+        }
+
+        foreach ($valuesDeleted as $value){
+            $dao = $this->daoFactory->getDaoFromEntity($value);
+            $dao->delete($value);
+        }
+    }
+
+    /**
+     * @param $parent
+     * @param $referencedValue
+     * @param $referencedField
+     */
+    private function persistReference($parent, $referencedValue, $referencedField) {
+        if ($this->isTransient($referencedValue)) {
+            $this->persistReferencedEntity($parent, $referencedValue, $referencedField);
+        } else {
+            //FIXME handle this case?
+            //throw new \RuntimeException("STUB");
+        }
     }
 }

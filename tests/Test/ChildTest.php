@@ -15,25 +15,10 @@ class ChildTest {
      */
     private $id;
 
-
-    /**
-     * @var string
-     */
-    private $string;
-
     /**
      * @return int
      */
     public function getId() {
         return $this->id;
     }
-
-    /**
-     * @return string
-     */
-    public function getString() {
-        return $this->string;
-    }
-
-
 }

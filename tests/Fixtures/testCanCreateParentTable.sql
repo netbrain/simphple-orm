@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS parent (
+  `id`       INT AUTO_INCREMENT,
+  `_version` INT NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`)
+)
+  ENGINE=InnoDB

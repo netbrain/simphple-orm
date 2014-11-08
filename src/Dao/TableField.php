@@ -9,7 +9,7 @@ class TableField {
     const AUTO_INCREMENT = 2;
     const UNIQUE = 4;
     const NOT_NULL = 8;
-
+    
     /**
      * @var string
      */
@@ -31,22 +31,24 @@ class TableField {
     private $flags = 0;
 
     /**
-     * @var TableData
+     * @var Table
      */
-    private $reference;
+    private $table;
 
-    function __construct($fieldName, $propertyName, $type, $flags = 0, $default = null, TableData $reference = null) {
+    function __construct($fieldName, $propertyName, $type, $flags = 0, $default = null) {
         $this->flags = $flags;
         $this->fieldName = $fieldName;
         $this->propertyName = $propertyName;
         $this->type = $type;
-        $this->reference = $reference;
         $this->default = $default;
     }
 
-
     public function isPrimaryKey() {
         return $this->isFlagSet(self::PRIMARY);
+    }
+
+    public function isForeignKey() {
+        return $this->getForeignKeyConstraint() !== false;
     }
 
     private function isFlagSet($flag) {
@@ -75,10 +77,10 @@ class TableField {
         $this->flags |= $flag;
     }
 
-
     public function getDefault() {
         return $this->default;
     }
+
 
     public function setDefault($default) {
         $this->default = $default;
@@ -97,24 +99,6 @@ class TableField {
      */
     public function setPropertyName($name) {
         $this->propertyName = $name;
-    }
-
-    /**
-     * @return TableData
-     */
-    public function getReference() {
-        return $this->reference;
-    }
-
-    /**
-     * @param TableData $reference
-     */
-    public function setReference(TableData $reference) {
-        $this->reference = $reference;
-    }
-
-    public function isReference() {
-        return !is_null($this->reference);
     }
 
     public function isNumericType() {
@@ -178,7 +162,7 @@ class TableField {
     }
 
     public function isVersion() {
-        return $this->getFieldName() === TableData::VERSION_FIELD;
+        return $this->getFieldName() === Table::VERSION_FIELD;
     }
 
     /**
@@ -197,10 +181,29 @@ class TableField {
     }
 
     /**
-     * @return bool
+     * @param Table $table
      */
-    public function isOneToMany() {
-        return $this->isReference() && !$this->reference->isBoundToEntity();
+    public function setTable($table) {
+        $this->table = $table;
     }
 
+    /**
+     * @return Table
+     */
+    public function getTable() {
+        return $this->table;
+    }
+
+    /**
+     * @return bool|ForeignKeyConstraint
+     */
+    public function getForeignKeyConstraint(){
+        $fkConstraints = $this->table->getForeignKeyConstaints();
+        foreach($fkConstraints as $fkConstraint){
+            if($fkConstraint->getForeignKeyField() === $this){
+                return $fkConstraint;
+            }
+        }
+        return false;
+    }
 }

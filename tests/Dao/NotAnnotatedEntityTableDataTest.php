@@ -18,14 +18,15 @@ class NotAnnotatedEntityTableDataTest extends DaoTestCase {
     private $notAnnotatedTest;
 
     /**
-     * @var TableData
+     * @var Table
      */
     private $notAnnotatedTableData;
 
     protected function setUp() {
+        parent::setUp();
         $this->notAnnotatedTest = new NotAnnotatedTest();
-        $this->notAnnotatedTestDao = new NotAnnotatedTestDao(self::$db);
-        $this->notAnnotatedTableData = TableDataBuilder::build($this->notAnnotatedTestDao->getEntityClass());
+        $this->notAnnotatedTestDao = new NotAnnotatedTestDao($this->database,$this->daoFactory);
+        $this->notAnnotatedTableData = $this->database->build($this->notAnnotatedTestDao->getEntityClass());
         $this->notAnnotatedTestDao->createTable();
     }
 

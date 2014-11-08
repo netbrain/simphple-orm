@@ -16,19 +16,26 @@ abstract class DaoTestCase extends \PHPUnit_Framework_TestCase {
 
 
     /**
-     * @var mysqli
+     * @var Database
      */
-    protected static $db;
+    protected $database;
 
-    function __construct() {
-
-    }
+    /**
+     * @var DaoFactory
+     */
+    protected $daoFactory;
 
 
     public static function setUpBeforeClass() {
         self::configureLogging();
-        self::configureMysqli();
     }
+
+    protected function setUp() {
+        $this->configureDatabase();
+        $this->dropTables();
+        $this->daoFactory = new DaoFactory($this->database);
+    }
+
 
     private static function configureLogging() {
         Logger::configure(array(
@@ -47,23 +54,23 @@ abstract class DaoTestCase extends \PHPUnit_Framework_TestCase {
         self::$logger = Logger::getRootLogger();
     }
 
-    private static function configureMysqli() {
+    private function configureDatabase() {
         $config = Config::getMysql();
-        self::$db = new mysqli($config['host'], $config['username'], $config['password'], $config['database'], $config['port'], $config['socket']);
-        if (self::$db->connect_errno) {
-            self::$logger->error("Failed to connect to MySQL: (" . self::$db->connect_errno . ") " . self::$db->connect_error);
+        $mysqli = new mysqli($config['host'], $config['username'], $config['password'], $config['database'], $config['port'], $config['socket']);
+        if ($mysqli->connect_errno) {
+            self::$logger->error("Failed to connect to MySQL: (" . $mysqli->connect_errno . ") " . $mysqli->connect_error);
         }
+        $this->database = new Database($mysqli);
     }
 
-    public static function tearDownAfterClass() {
-        DaoFactory::dropTables();
+
+    private function dropTables() {
+        self::runQuery("SET FOREIGN_KEY_CHECKS = 0");
+        self::runQueryOnAllTables("DROP TABLE %s");
+        self::runQuery("SET FOREIGN_KEY_CHECKS = 1");
     }
 
-    public function tearDown() {
-        self::runQueryOnAllTables("TRUNCATE TABLE %s");
-    }
-
-    private static function runQueryOnAllTables($query) {
+    private function runQueryOnAllTables($query) {
         $showTablesQuery = "SHOW TABLES";
         $result = self::runQuery($showTablesQuery);
         if ($result->num_rows > 0) {
@@ -91,9 +98,11 @@ abstract class DaoTestCase extends \PHPUnit_Framework_TestCase {
         }
 
         $fixtureSql = file_get_contents($fixture);
-        $fixtureSql = preg_replace('/^[ ]+/', "", explode("\n", $fixtureSql));
-        $fixtureSql = preg_replace('/[ ]+/', " ", $fixtureSql);
+        $fixtureSql = preg_replace('/^[ ]+/', ' ', explode("\n", $fixtureSql));
+        $fixtureSql = preg_replace('/[ ]+/', ' ', $fixtureSql);
         $fixtureSql = join('', $fixtureSql);
+        $fixtureSql = preg_replace('/\( /', '(', $fixtureSql);
+        $fixtureSql = preg_replace('/, /', ',', $fixtureSql);
 
         $args = array($fixtureSql);
         for ($x = 2; $x < func_num_args(); $x++) {
@@ -108,11 +117,12 @@ abstract class DaoTestCase extends \PHPUnit_Framework_TestCase {
      * @param $sql
      * @return bool|\mysqli_result
      */
-    protected static function runQuery($sql) {
-        $result = self::$db->query($sql);
+    protected function runQuery($sql) {
+        $mysqli = $this->database->getMysqli();
+        $result = $mysqli->query($sql);
         self::$logger->debug("Ran query: " . $sql);
         if (!$result) {
-            self::fail(self::$db->error);
+            self::fail($mysqli->error);
         }
         return $result;
     }

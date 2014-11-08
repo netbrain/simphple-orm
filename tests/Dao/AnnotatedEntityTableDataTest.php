@@ -19,18 +19,18 @@ class AnnotatedEntityTableDataBuilderTest extends DaoTestCase {
     private $annotatedTest;
 
     /**
-     * @var TableData
+     * @var Table
      */
     private $annotatedTableData;
 
 
     protected function setUp() {
+        parent::setUp();
         $this->annotatedTest = new AnnotatedTest();
-        $this->annotatedTestDao = new AnnotatedTestDao(self::$db);
-        $this->annotatedTableData = TableDataBuilder::build($this->annotatedTestDao->getEntityClass());
+        $this->annotatedTestDao = new AnnotatedTestDao($this->database,$this->daoFactory);
+        $this->annotatedTableData = $this->database->build($this->annotatedTestDao->getEntityClass());
         $this->annotatedTestDao->createTable();
     }
-
 
     public function testGetCreateTableSQLFromAnnotatedEntity() {
         $sql = $this->annotatedTableData->getCreateTableSQL();
