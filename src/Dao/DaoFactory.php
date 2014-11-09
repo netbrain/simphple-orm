@@ -89,7 +89,7 @@ class DaoFactory {
         if (array_key_exists($class, $this->daosByEntity)) {
             return $this->daosByEntity[$class];
         }
-        return null;
+        throw new \RuntimeException("cannot fetch dao from unknown entity: $class");
     }
 
     public function createTables() {

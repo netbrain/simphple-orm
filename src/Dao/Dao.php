@@ -173,8 +173,13 @@ abstract class Dao {
             throw new \RuntimeException("No rows updated by update query! either row has been deleted or another version was committed");
         }else{
             //increment version
-            $versionPropertyName = $this->table->getVersionField()->getPropertyName();
-            $obj->{$versionPropertyName}++;
+            $obj->{Dao::VERSION}++;
+            $cache = clone $obj;
+            if(isset($cache->{Dao::CACHE})){
+                unset($cache->{Dao::CACHE});
+            }
+            $obj->{Dao::CACHE} = $cache;
+
         }
     }
 
@@ -500,6 +505,11 @@ abstract class Dao {
         if($a == null){
             $a = array();
         }
+
+        if($a instanceof CollectionProxy){
+            $a = $a->getArrayCopy();
+        }
+
         foreach (array_keys($a) as $key){
             $child = $a[$key];
             unset($a[$key]);
@@ -514,9 +524,15 @@ abstract class Dao {
         }
 
         $b = $this->table->getPropertyValue($this->getCache($parentEntity),$parentField);
+
         if($b == null){
             $b = array();
         }
+
+        if($b instanceof CollectionProxy){
+            $b = $b->getArrayCopy();
+        }
+
         foreach (array_keys($b) as $key){
             $child = $b[$key];
             unset($b[$key]);
