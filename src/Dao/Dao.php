@@ -75,6 +75,34 @@ abstract class Dao {
     }
 
     /**
+     * @param $query
+     * @param $parameters
+     * @return array|mixed
+     */
+    public function findBySQL($query, $parameters = array()) {
+        $parameters = array_map(function($e){
+            return mysqli_real_escape_string($this->database->getMysqli(),$e);
+        },$parameters);
+        array_unshift($parameters,$query);
+
+        $query = call_user_func_array('sprintf', $parameters);
+        $result = $this->runQuery($query);
+
+        if (!$result || mysqli_num_rows($result) == 0) {
+            return null;
+        }else if(mysqli_num_rows($result) == 1){
+            $obj = $result->fetch_object();
+            return $this->cast($obj);
+        }else{
+            $entities = array();
+            while ($obj = $result->fetch_object()) {
+                $entities[] = $this->cast($obj);
+            }
+            return $entities;
+        }
+    }
+
+    /**
      * Deletes an entity from the database
      * @param $obj
      * @return null|object
@@ -398,12 +426,12 @@ abstract class Dao {
         return $result;
     }
 
+
     /**
      * Class name for entity this dao class handles.
      * @return string
      */
     public abstract function getEntityClass();
-
 
     /**
      * @param $daoFactory DaoFactory
@@ -429,6 +457,7 @@ abstract class Dao {
             }
         }
     }
+
 
     /**
      * @param $obj
@@ -468,7 +497,6 @@ abstract class Dao {
         }
         return $references;
     }
-
 
     /**
      * @param $obj
