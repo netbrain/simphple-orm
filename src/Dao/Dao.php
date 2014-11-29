@@ -79,7 +79,7 @@ abstract class Dao {
      * @param $parameters
      * @return array|mixed
      */
-    public function findBySQL($query, $parameters = array()) {
+    protected function findBySQL($query, $parameters = array()) {
         $parameters = array_map(function($e){
             return mysqli_real_escape_string($this->database->getMysqli(),$e);
         },$parameters);

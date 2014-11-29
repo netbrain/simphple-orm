@@ -9,7 +9,7 @@
 namespace SimphpleOrm\Dao;
 
 
-interface Proxy {
+interface Proxy extends \JsonSerializable{
     public function isInitialized();
     public function initialize();
 } 
