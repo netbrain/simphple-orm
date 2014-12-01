@@ -50,6 +50,10 @@ abstract class Dao {
         $this->runQuery($this->table->getCreateTableSQL());
     }
 
+    public function dropTable(){
+        $this->runQuery($this->table->getDropTableSQL());
+    }
+
     /**
      * Creates an entity in the database
      * @param $obj
