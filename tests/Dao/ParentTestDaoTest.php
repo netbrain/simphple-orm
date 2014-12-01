@@ -88,4 +88,24 @@ class ParentTestDaoTest extends DaoTestCase{
         $this->assertEquals(2,$parent->{Dao::VERSION});
     }
 
+    public function testCanAddToCollectionProxy(){
+        $parent = new ParentTest();
+        $id = $this->parentDao->create($parent);
+
+        /**
+         * fetch lazy object
+         * @var $parent ParentTest
+         */
+        $parent = $this->parentDao->find($id);
+        $this->assertTrue($parent->getChildren() instanceof CollectionProxy);
+        $parent->addToChildren(new ChildTest());
+        $this->parentDao->update($parent);
+        $children = $parent->getChildren();
+        $this->assertTrue(is_array($children));
+        $this->assertEquals(1,count($children));
+        $this->assertFalse($this->childDao->isTransient($children[0]));
+        $this->assertTrue(is_numeric($children[0]->getId()));
+
+    }
+
 } 

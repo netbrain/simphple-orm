@@ -38,96 +38,96 @@ class CollectionProxy extends \ArrayObject implements Proxy {
     public function isInitialized() {
         return $this->initialized;
     }
-
-
-    public function initialize(){
-        if(!$this->isInitialized()){
+    
+    public function initialize($swap = true){
+        if(!$this->isInitialized() && !$this->initializing){
             $this->initializing = true;
             $table = $this->field->getTable();
             $id = $table->getPropertyValue($this->owner,$table->getPrimaryKeyField());
             $this->dao->__refreshByFK($this,$id,$this->field->getForeignKeyConstraint());
             $this->initialized = true;
             $this->initializing = false;
-            ProxyUtils::swap($this->owner,$this->getArrayCopy(),$this->field);
+            if($swap){
+                $this->swap();
+            }
         }
     }
 
+    private function swap(){
+        ProxyUtils::swap($this->owner,$this->getArrayCopy(),$this->field);
+    }
+
     public function offsetExists($index) {
-        $this->initializeIfNotAlreadyStarted();
+       $this->initialize();
         parent::offsetExists($index);
     }
 
     public function offsetGet($index) {
-        $this->initializeIfNotAlreadyStarted();
+       $this->initialize();
         parent::offsetGet($index);
     }
 
     public function offsetSet($index, $newval) {
-        $this->initializeIfNotAlreadyStarted();
+        $this->initialize(false);
         parent::offsetSet($index, $newval);
+        $this->swap();
     }
 
     public function offsetUnset($index) {
-        $this->initializeIfNotAlreadyStarted();
+       $this->initialize();
         parent::offsetUnset($index);
     }
 
     public function append($value) {
-        $this->initializeIfNotAlreadyStarted();
+       $this->initialize();
         parent::append($value);
     }
 
     public function getArrayCopy() {
-        $this->initializeIfNotAlreadyStarted();
+       $this->initialize();
         return parent::getArrayCopy();
     }
 
     public function count() {
-        $this->initializeIfNotAlreadyStarted();
+       $this->initialize();
         return parent::count();
     }
 
     public function asort() {
-        $this->initializeIfNotAlreadyStarted();
+       $this->initialize();
         parent::asort(); 
     }
 
     public function ksort() {
-        $this->initializeIfNotAlreadyStarted();
+       $this->initialize();
         parent::ksort(); 
     }
 
     public function uasort($cmp_function) {
-        $this->initializeIfNotAlreadyStarted();
+       $this->initialize();
         parent::uasort($cmp_function); 
     }
 
     public function uksort($cmp_function) {
-        $this->initializeIfNotAlreadyStarted();
+       $this->initialize();
         parent::uksort($cmp_function); 
     }
 
     public function natsort() {
-        $this->initializeIfNotAlreadyStarted();
+       $this->initialize();
         parent::natsort(); 
     }
 
     public function natcasesort() {
-        $this->initializeIfNotAlreadyStarted();
+       $this->initialize();
         parent::natcasesort(); 
     }
 
     public function getIterator() {
-        $this->initializeIfNotAlreadyStarted();
+       $this->initialize();
         return parent::getIterator();
     }
-
-    private function initializeIfNotAlreadyStarted() {
-        if (!$this->initialized && !$this->initializing) {
-            $this->initialize();
-        }
-    }
-
+    
     /**
      * (PHP 5 &gt;= 5.4.0)<br/>
      * Specify data which should be serialized to JSON

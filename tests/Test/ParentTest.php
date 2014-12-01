@@ -43,6 +43,10 @@ class ParentTest {
         $this->child = $child;
     }
 
+    public function addToChildren($child){
+        $this->children[] = $child;
+    }
+
     /**
      * @return ChildTest[]
      */
