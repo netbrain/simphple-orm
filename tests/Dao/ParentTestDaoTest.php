@@ -55,4 +55,37 @@ class ParentTestDaoTest extends DaoTestCase{
         $this->assertEquals($parent,$parent2);
     }
 
+    public function testCanCreateParentWithChilddren(){
+        $parent = new ParentTest();
+        $child = new ChildTest();
+        $parent->setChildren(array($child));
+        $this->parentDao->create($parent);
+        $this->assertNotNull($child->getId());
+    }
+
+    public function testCanUpdateParentWithChildren(){
+        $parent = new ParentTest();
+        $child = new ChildTest();
+        $this->parentDao->create($parent);
+        $parent->setChildren(array($child));
+        $this->parentDao->update($parent);
+        $this->assertNotNull($child->getId());
+    }
+
+    public function testUpdateWillBeSkippedIfNoFieldsWereModified(){
+        $parent = new ParentTest();
+        $child = new ChildTest();
+        $this->parentDao->create($parent);
+        $this->assertEquals(1,$parent->{Dao::VERSION});
+        $parent->setChild($child);
+
+        //First update, increments version to 2
+        $this->parentDao->update($parent);
+        $this->assertEquals(2,$parent->{Dao::VERSION});
+
+        //Second update with no changes, does not increment version.
+        $this->parentDao->update($parent);
+        $this->assertEquals(2,$parent->{Dao::VERSION});
+    }
+
 } 

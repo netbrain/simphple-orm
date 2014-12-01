@@ -194,21 +194,18 @@ abstract class Dao {
             $this->handleOneToManyChanges($obj,$oneToManyFields);
         }
 
-        $query = $this->table->getUpdateSQL($obj);
-        $this->runQuery($query);
+        if($this->isDirty($obj)) {
+            $query = $this->table->getUpdateSQL($obj);
+            $this->runQuery($query);
 
-        if (!mysqli_affected_rows($this->database->getMysqli()) > 0) {
-            throw new \RuntimeException("No rows updated by update query! either row has been deleted or another version was committed");
-        }else{
-            //increment version
-            $obj->{Dao::VERSION}++;
-            $cache = clone $obj;
-            if(isset($cache->{Dao::CACHE})){
-                unset($cache->{Dao::CACHE});
+            if (!mysqli_affected_rows($this->database->getMysqli()) > 0) {
+                throw new \RuntimeException("No rows updated by update query! either row has been deleted or another version was committed");
+            } else {
+                //increment version
+                $obj->{Dao::VERSION}++;
             }
-            $obj->{Dao::CACHE} = $cache;
-
         }
+        $this->setCache($obj);
     }
 
     public function initialize($entityOrCollection){
@@ -515,7 +512,12 @@ abstract class Dao {
     }
 
     private function setCache($obj) {
-        $obj->{self::CACHE} = clone $obj;
+        $cache = clone $obj;
+        if(isset($cache->{self::CACHE})){
+            unset($cache->{self::CACHE});
+        }
+        $obj->{self::CACHE} = $cache;
+
     }
 
     private function getCache($obj){
@@ -599,5 +601,17 @@ abstract class Dao {
             //FIXME handle this case?
             //throw new \RuntimeException("STUB");
         }
+    }
+
+    /**
+     * @param $obj
+     * @return bool
+     */
+    private function isDirty($obj) {
+        $clone = clone $obj;
+        if(isset($clone->{Dao::CACHE})){
+            unset($clone->{Dao::CACHE});
+        }
+        return $clone != $this->getCache($obj);
     }
 }
