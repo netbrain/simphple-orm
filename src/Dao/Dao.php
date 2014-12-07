@@ -213,6 +213,10 @@ abstract class Dao {
         $this->setCache($obj);
     }
 
+    /**
+     * @param $entityOrCollection
+     * @return array|mixed
+     */
     public function initialize($entityOrCollection){
         if($entityOrCollection == null){
             return;
@@ -227,9 +231,15 @@ abstract class Dao {
             if ($entityOrCollection instanceof Proxy) {
                 if (!$entityOrCollection->isInitialized()) {
                     $entityOrCollection->initialize();
+                    if($entityOrCollection instanceof CollectionProxy){
+                        $entityOrCollection = $entityOrCollection->getArrayCopy();
+                    }else if($entityOrCollection instanceof EntityProxy){
+                        $entityOrCollection = $entityOrCollection->getDelegate();
+                    }
                 }
             }
         }
+        return $entityOrCollection;
     }
 
     public function isInitialized($entityOrCollection) {
@@ -248,9 +258,10 @@ abstract class Dao {
     /**
      * Initializes an entity with two levels of data
      * @param $entity
+     * @return array|mixed
      */
     public function initializeDeep($entity){
-        $this->initialize($entity);
+        $output = $this->initialize($entity);
         foreach($this->table->getIncomingForeignKeyFields() as $field){
             $value = $this->table->getPropertyValue($entity,$field);
             if($value == null){
@@ -258,6 +269,7 @@ abstract class Dao {
             }
             $this->initializeDeep($value);
         }
+        return $output;
     }
 
     /**
@@ -587,7 +599,7 @@ abstract class Dao {
     private function handleOneToManyChanges($parentEntity, $parentField) {
 
         $a = $this->table->getPropertyValue($parentEntity,$parentField);
-        if($a == null){
+        if($a == null || $a instanceof CollectionProxy){
             $a = array();
         }
 
