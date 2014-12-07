@@ -63,6 +63,38 @@ class DaoTest extends DaoTestCase {
         $this->assertNotNull($dbEntity->{Dao::CACHE});
     }
 
+
+    public function testCreateEntityIsDirty() {
+        $this->annotatedTestDao->create($this->entity);
+        $this->assertFalse($this->annotatedTestDao->isDirty($this->entity));
+        $this->entity->setString("Adding this string should cause entity to be dirty");
+        $this->assertTrue($this->annotatedTestDao->isDirty($this->entity));
+    }
+
+    public function testCreateEntityIsDirtyWhenAddingToCollection() {
+        $this->annotatedTestDao->create($this->entity);
+        $this->assertFalse($this->annotatedTestDao->isDirty($this->entity));
+        $this->entity->setOneToManyChild(array(new ChildTest()));
+        $this->assertTrue($this->annotatedTestDao->isDirty($this->entity));
+        $this->annotatedTestDao->update($this->entity);
+        $this->assertFalse($this->annotatedTestDao->isDirty($this->entity));
+        $this->entity->setOneToManyChild(array(new ChildTest()));
+        $this->assertTrue($this->annotatedTestDao->isDirty($this->entity));
+        $this->annotatedTestDao->update($this->entity);
+        $this->assertFalse($this->annotatedTestDao->isDirty($this->entity));
+
+    }
+
+    public function testCreateEntityIsDirtyWhenSettingOneToOneRelationship() {
+        $this->annotatedTestDao->create($this->entity);
+        $this->assertFalse($this->annotatedTestDao->isDirty($this->entity));
+        $this->entity->setOneToOneChild(new ChildTest());
+        $this->assertTrue($this->annotatedTestDao->isDirty($this->entity));
+        $this->annotatedTestDao->update($this->entity);
+        $this->assertFalse($this->annotatedTestDao->isDirty($this->entity));
+
+    }
+
     public function testCreateEntityWithData() {
         $this->entity->setOneToOneChild(new ChildTest());
         $this->entity->setBoolean(true);

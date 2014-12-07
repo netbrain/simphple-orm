@@ -78,7 +78,7 @@ class EntityProxy implements Proxy{
             $table = $this->field->getTable();
             $id = $table->getPropertyValue($this->owner,$table->getPrimaryKeyField());
             $this->dao->__refreshByFK($this->delegate,$id,$this->field->getForeignKeyConstraint());
-            ProxyUtils::swap($this->owner,$this->delegate,$this->field);
+            ProxyUtils::swap($this->owner,$this->delegate,$this->field,$this->dao);
         }
     }
 

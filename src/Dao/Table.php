@@ -533,14 +533,19 @@ class Table {
         return $this->fieldsByFieldName[$name];
     }
 
-    public function getDeleteSQL($obj) {
-        $id = $this->getSQLFormattedValue($this->getId($obj),$this->getPrimaryKeyField());
+    public function getDeleteSQL($entity) {
+        $id = $this->getSQLFormattedValue($this->getId($entity), $this->getPrimaryKeyField());
         return sprintf("DELETE FROM %s WHERE %s = %s AND %s = %s",
             $this->getName(), $this->getPrimaryKeyField()->getFieldName(),
             $id,
             $this->getVersionField()->getFieldName(),
-            $this->getVersion($obj));
+            $this->getVersion($entity));
+    }
 
+    public function getDeleteByIdSQL($id) {
+        return sprintf("DELETE FROM %s WHERE %s = %s",
+            $this->getName(), $this->getPrimaryKeyField()->getFieldName(),
+            $id);
     }
 
     public function getAllSQL() {

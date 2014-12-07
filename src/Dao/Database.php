@@ -366,7 +366,7 @@ class Database {
     }
 
     /**
-     * @return array
+     * @return Table[]
      */
     public function getTables() {
         return $this->tables;

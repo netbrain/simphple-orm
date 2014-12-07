@@ -10,6 +10,8 @@ use stdClass;
 abstract class Dao {
 
     const CACHE = '_cache';
+    const TYPE = '_type';
+    const ID = '_id';
     const TRANSIENT_PREFIX = "\$_";
     const VERSION = Table::VERSION_FIELD;
 
@@ -48,6 +50,10 @@ abstract class Dao {
 
     public function createTable(){
         $this->runQuery($this->table->getCreateTableSQL());
+    }
+
+    public function dropTable(){
+        $this->runQuery($this->table->getDropTableSQL());
     }
 
     /**
@@ -104,11 +110,11 @@ abstract class Dao {
 
     /**
      * Deletes an entity from the database
-     * @param $obj
+     * @param $entityOrId
      * @return null|object
      */
-    public function delete($obj) {
-        $query = $this->table->getDeleteSQL($obj);
+    public function delete($entityOrId) {
+        $query = is_object($entityOrId) ? $this->table->getDeleteSQL($entityOrId) : $this->table->getDeleteByIdSQL($entityOrId);
         $this->runQuery($query);
         if(!mysqli_affected_rows($this->database->getMysqli()) > 0){
             throw new \RuntimeException("Nothing was deleted, might be due to optimistic locking failure or simply that the entity no longer exists");
@@ -162,7 +168,6 @@ abstract class Dao {
                 }
             }
         }
-
     }
 
     /**
@@ -471,10 +476,8 @@ abstract class Dao {
             $this->setIdValue($obj, $insertId);
         }
         $this->setVersion($obj);
-        $this->setCache($obj);
-
         $this->persistReferences($obj);
-
+        $this->setCache($obj);
         return $this->getIdValue($obj);
     }
 
@@ -511,8 +514,8 @@ abstract class Dao {
         return $oneToManyReferences;
     }
 
-    private function setCache($obj) {
-        $cache = clone $obj;
+    public function setCache($obj) {
+        $cache = $this->createCache($obj);
         if(isset($cache->{self::CACHE})){
             unset($cache->{self::CACHE});
         }
@@ -522,6 +525,58 @@ abstract class Dao {
 
     private function getCache($obj){
         return $obj->{self::CACHE};
+    }
+
+    private function createCache($entity) {
+        if (!is_object($entity)) {
+            throw new \InvalidArgumentException();
+        }
+        $reflectedEntity = new \ReflectionClass($entity);
+        $entityCopy = $reflectedEntity->newInstanceWithoutConstructor();
+
+        $properties = $reflectedEntity->getProperties();
+        foreach ($properties as $property) {
+            $property->setAccessible(true);
+            $property->setValue($entityCopy,$this->getCacheValue($property->getValue($entity)));
+        }
+
+        $dynamicProperties = get_object_vars($entity);
+        foreach ($dynamicProperties as $name => $dynamicProperty) {
+            $entityCopy->{$name} = $this->getCacheValue($dynamicProperty);
+        }
+        return $entityCopy;
+
+    }
+
+    /**
+     * @param $value
+     * @return mixed
+     */
+    private function getCacheValue($value) {
+        if (is_object($value)) {
+            if ($value instanceof CollectionProxy) {
+                return array();
+            } else if ($value instanceof EntityProxy) {
+                return null;
+            } else {
+                if($this->isTransient($value)){
+                    return spl_object_hash($value);
+                }else{
+                    return (object) array(
+                        Dao::TYPE => get_class($value),
+                        DAO::ID => $this->daoFactory->getDaoFromEntity($value)->getIdValue($value)
+                    );
+                }
+            }
+        } else if (is_array($value)) {
+            $arrayCopy = array();
+            foreach($value as $k => $v){
+                $arrayCopy[$k] = $this->getCacheValue($v);
+            }
+            return $arrayCopy;
+        } else {
+            return $value;
+        }
     }
 
     /**
@@ -536,16 +591,9 @@ abstract class Dao {
             $a = array();
         }
 
-        if($a instanceof CollectionProxy){
-            $a = $a->getArrayCopy();
-        }
-
         foreach (array_keys($a) as $key){
             $child = $a[$key];
             unset($a[$key]);
-            if($child instanceof EntityProxy){
-                $child = $child->getDelegate();
-            }
             $id = $this->daoFactory->getDaoFromEntity($child)->getIdValue($child);
             if($id == null){
                 $id = uniqid(self::TRANSIENT_PREFIX);
@@ -559,21 +607,10 @@ abstract class Dao {
             $b = array();
         }
 
-        if($b instanceof CollectionProxy){
-            $b = $b->getArrayCopy();
-        }
-
         foreach (array_keys($b) as $key){
             $child = $b[$key];
             unset($b[$key]);
-            if($child instanceof EntityProxy){
-                $child = $child->getDelegate();
-            }
-            $id = $this->daoFactory->getDaoFromEntity($child)->getIdValue($child);
-            if($id == null){
-                $id = uniqid(self::TRANSIENT_PREFIX);
-            }
-            $b[$id] = $child;
+            $b[$child->{DAO::ID}] = $child;
         }
 
         $valuesAdded = array_diff_key($a,$b);
@@ -584,8 +621,8 @@ abstract class Dao {
         }
 
         foreach ($valuesDeleted as $value){
-            $dao = $this->daoFactory->getDaoFromEntity($value);
-            $dao->delete($value);
+            $dao = $this->daoFactory->getDaoFromEntity($value->{DAO::TYPE});
+            $dao->delete($value->{DAO::ID});
         }
     }
 
@@ -607,11 +644,11 @@ abstract class Dao {
      * @param $obj
      * @return bool
      */
-    private function isDirty($obj) {
-        $clone = clone $obj;
+    public function isDirty($obj) {
+        $clone = $this->createCache($obj);
         if(isset($clone->{Dao::CACHE})){
             unset($clone->{Dao::CACHE});
         }
-        return $clone != $this->getCache($obj);
+        return serialize($clone) != serialize($this->getCache($obj));
     }
 }

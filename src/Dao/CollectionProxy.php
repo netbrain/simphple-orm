@@ -23,6 +23,16 @@ class CollectionProxy extends \ArrayObject implements Proxy {
     private $initializing = false;
 
     /**
+     * @var object
+     */
+    private $owner;
+
+    /**
+     * @var Dao
+     */
+    private $dao;
+
+    /**
      * @param $owner
      * @param Dao $dao
      * @param TableField $field
@@ -54,7 +64,7 @@ class CollectionProxy extends \ArrayObject implements Proxy {
     }
 
     private function swap(){
-        ProxyUtils::swap($this->owner,$this->getArrayCopy(),$this->field);
+        ProxyUtils::swap($this->owner,$this->getArrayCopy(),$this->field, $this->dao);
     }
 
     public function offsetExists($index) {
@@ -127,7 +137,7 @@ class CollectionProxy extends \ArrayObject implements Proxy {
        $this->initialize();
         return parent::getIterator();
     }
-    
+
     /**
      * (PHP 5 &gt;= 5.4.0)<br/>
      * Specify data which should be serialized to JSON
