@@ -243,6 +243,21 @@ class DaoTest extends DaoTestCase {
         $this->entity = $this->annotatedTestDao->find($this->entity->getId());
         $this->assertEquals(1,count($this->entity->getOneToManyChild()));
     }
+
+    public function testCanUpdateChildElementWithoutLoosingParentFK(){
+        $this->entity->setOneToManyChild(array(new ChildTest()));
+        $this->annotatedTestDao->create($this->entity);
+
+        $this->entity = $this->annotatedTestDao->find($this->entity->getId());
+        $this->assertEquals(1,count($this->entity->getOneToManyChild()));
+
+        $child = $this->entity->getOneToManyChild()[0];
+        $child->setData('something updated');
+        $this->childTestDao->update($child);
+
+        $this->annotatedTestDao->refresh($this->entity);
+        $this->assertEquals(1,count($this->entity->getOneToManyChild()));
+    }
 }
 
 

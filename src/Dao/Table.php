@@ -423,7 +423,9 @@ class Table {
         $versionFieldName = null;
 
         foreach ($fields as $field) {
-            if ($field->isPrimaryKey()) {
+            if($field->isForeignKey() && !$this->hasPropertyValue($obj,$field)){
+                continue;
+            }else if ($field->isPrimaryKey()) {
                 $idName = $field->getFieldName();
                 $idValue = $this->getSQLFieldValue($this->getId($obj), $field);
             } else {
@@ -433,6 +435,7 @@ class Table {
                     $versionFieldName = $field->getFieldName();
                     $value++; //increment version
                 }
+
                 $value = $this->getSQLFieldValue($value, $field);
                 $fieldValues[$this->getSQLFormattedFieldName($field)] = $value;
             }

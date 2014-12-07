@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS child (
   `id`                 INT AUTO_INCREMENT,
+  `data`               VARCHAR(255),
   `parent_child_fk`    INT,
   `parent_children_fk` INT,
   `_version`           INT NOT NULL DEFAULT 1,
