@@ -109,13 +109,4 @@ class DaoFactory {
         }
         $mysqli->query(("SET FOREIGN_KEY_CHECKS = 1"));
     }
-
-    public function dropTables(){
-        $mysqli = $this->database->getMysqli();
-        $mysqli->query(("SET FOREIGN_KEY_CHECKS = 0"));
-        foreach($this->daos as $dao){
-            $dao->dropTable();
-        }
-        $mysqli->query(("SET FOREIGN_KEY_CHECKS = 1"));
-    }
 }
