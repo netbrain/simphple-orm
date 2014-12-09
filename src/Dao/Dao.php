@@ -603,13 +603,12 @@ abstract class Dao {
             $a = array();
         }
 
-        foreach (array_keys($a) as $key){
-            $child = $a[$key];
-            unset($a[$key]);
+        foreach ($a as $key => $child){
             $id = $this->daoFactory->getDaoFromEntity($child)->getIdValue($child);
             if($id == null){
                 $id = uniqid(self::TRANSIENT_PREFIX);
             }
+            unset($a[$key]);
             $a[$id] = $child;
         }
 
