@@ -598,33 +598,35 @@ abstract class Dao {
      */
     private function handleOneToManyChanges($parentEntity, $parentField) {
 
-        $a = $this->table->getPropertyValue($parentEntity,$parentField);
-        if($a == null || $a instanceof CollectionProxy){
-            $a = array();
+        $newEntityValues = $this->table->getPropertyValue($parentEntity,$parentField);
+        if($newEntityValues == null || $newEntityValues instanceof CollectionProxy){
+            $newEntityValues = array();
         }
 
-        foreach ($a as $key => $child){
+        $buffer = array();
+        foreach ($newEntityValues as $key => $child){
             $id = $this->daoFactory->getDaoFromEntity($child)->getIdValue($child);
             if($id == null){
                 $id = uniqid(self::TRANSIENT_PREFIX);
             }
-            unset($a[$key]);
-            $a[$id] = $child;
+            $buffer[$id] = $child;
+        }
+        $newEntityValues = $buffer;
+
+        $oldEntityValues = $this->table->getPropertyValue($this->getCache($parentEntity),$parentField);
+        if($oldEntityValues == null){
+            $oldEntityValues = array();
         }
 
-        $b = $this->table->getPropertyValue($this->getCache($parentEntity),$parentField);
-
-        if($b == null){
-            $b = array();
+        $buffer = array();
+        foreach ($oldEntityValues as $key => $child){
+            unset($oldEntityValues[$key]);
+            $buffer[$child->{DAO::ID}] = $child;
         }
+        $oldEntityValues = $buffer;
 
-        foreach ($b as $key => $child){
-            unset($b[$key]);
-            $b[$child->{DAO::ID}] = $child;
-        }
-
-        $valuesAdded = array_diff_key($a,$b);
-        $valuesDeleted = array_diff_key($b,$a);
+        $valuesAdded = array_diff_key($newEntityValues,$oldEntityValues);
+        $valuesDeleted = array_diff_key($oldEntityValues,$newEntityValues);
 
         foreach($valuesAdded as $value){
             $this->persistReferencedEntity($parentEntity,$value,$parentField);
