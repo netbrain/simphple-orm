@@ -618,8 +618,7 @@ abstract class Dao {
             $b = array();
         }
 
-        foreach (array_keys($b) as $key){
-            $child = $b[$key];
+        foreach ($b as $key => $child){
             unset($b[$key]);
             $b[$child->{DAO::ID}] = $child;
         }
