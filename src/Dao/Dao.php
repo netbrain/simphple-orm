@@ -83,7 +83,7 @@ abstract class Dao {
     /**
      * @param $query
      * @param $parameters
-     * @return array|mixed
+     * @return array
      */
     protected function findBySQL($query, $parameters = array()) {
         $parameters = array_map(function($e){
@@ -96,9 +96,6 @@ abstract class Dao {
 
         if (!$result || mysqli_num_rows($result) == 0) {
             return null;
-        }else if(mysqli_num_rows($result) == 1){
-            $obj = $result->fetch_object();
-            return $this->cast($obj);
         }else{
             $entities = array();
             while ($obj = $result->fetch_object()) {
@@ -106,6 +103,24 @@ abstract class Dao {
             }
             return $entities;
         }
+    }
+
+    /**
+     * @param $query
+     * @param $parameters
+     * @return object
+     */
+    protected function findOneBySQL($query, $parameters = array()) {
+        $result = $this->findBySQL($query,$parameters);
+        if(is_null($result)){
+            return null;
+        }
+
+        if(count($result) !== 1){
+            throw new \RuntimeException("Result contains more than one row!");
+        }
+
+        return $result[0];
     }
 
     /**
