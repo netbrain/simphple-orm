@@ -32,12 +32,12 @@ class EntityProxy implements Proxy{
             throw new \Exception("Method '$name' doesn't exist on class: " . get_class($this->delegate));
         }
 
+        if(!$this->isInitialized()){
+            $this->initialize();
+        }
+
         if (strpos($name, 'get') === 0) {
             $propertyName = lcfirst(substr($name, 3));
-
-            if(!$this->isInitialized()){
-                $this->initialize();
-            }
             $tableField = $this->field->getTable()->getTableFieldByPropertyName($propertyName);
 
             if ($tableField->isForeignKey()) {
