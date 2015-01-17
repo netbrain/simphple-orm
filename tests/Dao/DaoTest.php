@@ -251,7 +251,7 @@ class DaoTest extends DaoTestCase {
         $this->entity = $this->annotatedTestDao->find($this->entity->getId());
         $this->assertEquals(1,count($this->entity->getOneToManyChild()));
 
-        $child = $this->entity->getOneToManyChild()[0];
+        $child = current($this->entity->getOneToManyChild());
         $child->setData('something updated');
         $this->childTestDao->update($child);
 
