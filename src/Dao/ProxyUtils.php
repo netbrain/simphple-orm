@@ -3,6 +3,8 @@
 namespace SimphpleOrm\Dao;
 
 
+use Closure;
+
 class ProxyUtils {
     /**
      * @param $owner object
@@ -10,11 +12,10 @@ class ProxyUtils {
      * @param $field TableField
      * @param $dao Dao
      */
-    public static function swap($owner,$delegate,$field, $dao){
-        $dao->setCache($owner);
-        $reflectedOwner = new \ReflectionClass($owner);
-        $property = $reflectedOwner->getProperty($field->getPropertyName());
-        $property->setAccessible(true);
-        $property->setValue($owner,$delegate);
+    public static function swap($owner,&$delegate,$field, $dao){
+        $setValue = Closure::bind(function($owner) use  ($field,&$delegate){
+           $owner->{$field->getPropertyName()} = &$delegate;
+        }, null, $owner);
+        $setValue($owner);
     }
 } 

@@ -33,6 +33,11 @@ class CollectionProxy extends \ArrayObject implements Proxy {
     private $dao;
 
     /**
+     * @var array
+     */
+    private $collection;
+
+    /**
      * @param $owner
      * @param Dao $dao
      * @param TableField $field
@@ -49,93 +54,98 @@ class CollectionProxy extends \ArrayObject implements Proxy {
         return $this->initialized;
     }
     
-    public function initialize($swap = true){
+    public function initialize(){
         if(!$this->isInitialized() && !$this->initializing){
             $this->initializing = true;
+            $this->dao->setCache($this->owner);
             $table = $this->field->getTable();
             $id = $table->getPropertyValue($this->owner,$table->getPrimaryKeyField());
-            $this->dao->__refreshByFK($this,$id,$this->field->getForeignKeyConstraint());
+            $this->collection = array();
+            ProxyUtils::swap($this->owner,$this->collection,$this->field, $this->dao);
+            $this->dao->__refreshByFK($this->collection,$id,$this->field->getForeignKeyConstraint());
+            $cacheCopy = $this->getArrayCopy();
+            ProxyUtils::swap($this->owner->{Dao::CACHE},$cacheCopy,$this->field, $this->dao);
             $this->initialized = true;
             $this->initializing = false;
-            if($swap){
-                $this->swap();
-            }
         }
     }
 
-    private function swap(){
-        ProxyUtils::swap($this->owner,$this->getArrayCopy(),$this->field, $this->dao);
-    }
-
     public function offsetExists($index) {
-       $this->initialize();
-        parent::offsetExists($index);
+        $this->initialize();
+        return array_key_exists($index,$this->collection);
     }
 
     public function offsetGet($index) {
-       $this->initialize();
-        parent::offsetGet($index);
+        $this->initialize();
+        return $this->collection[$index];
     }
 
     public function offsetSet($index, $newval) {
-        $this->initialize(false);
-        parent::offsetSet($index, $newval);
-        $this->swap();
+        $this->initialize();
+        if($index === null){
+            $this->append($newval);
+        }else{
+            $this->collection[$index] = $newval;
+        }
     }
 
     public function offsetUnset($index) {
-       $this->initialize();
-        parent::offsetUnset($index);
+        $this->initialize();
+        unset($this->collection[$index]);
     }
 
     public function append($value) {
        $this->initialize();
-        parent::append($value);
+       $this->collection[] = $value;
     }
 
     public function getArrayCopy() {
-       $this->initialize();
-        return parent::getArrayCopy();
+        $this->initialize();
+        $array = array();
+        foreach($this->collection as $key => $val){
+            $array[$key] = $val;
+        }
+        return $array;
     }
 
     public function count() {
-       $this->initialize();
-        return parent::count();
+        $this->initialize();
+        return sizeof($this->collection);
     }
 
     public function asort() {
-       $this->initialize();
-        parent::asort(); 
+        $this->initialize();
+        asort($this->collection);
     }
 
     public function ksort() {
-       $this->initialize();
-        parent::ksort(); 
+        $this->initialize();
+        ksort($this->collection);
     }
 
     public function uasort($cmp_function) {
-       $this->initialize();
-        parent::uasort($cmp_function); 
+        $this->initialize();
+        uasort($this->collection,$cmp_function);
     }
 
     public function uksort($cmp_function) {
-       $this->initialize();
-        parent::uksort($cmp_function); 
+        $this->initialize();
+        uksort($this->collection,$cmp_function);
     }
 
     public function natsort() {
-       $this->initialize();
-        parent::natsort(); 
+        $this->initialize();
+        natsort($this->collection);
     }
 
     public function natcasesort() {
-       $this->initialize();
-        parent::natcasesort(); 
+        $this->initialize();
+        natcasesort($this->collection);
     }
 
     public function getIterator() {
        $this->initialize();
-        return parent::getIterator();
+       return new \ArrayIterator($this->collection);
     }
 
     /**
@@ -146,6 +156,11 @@ class CollectionProxy extends \ArrayObject implements Proxy {
      * which is a value of any type other than a resource.
      */
     function jsonSerialize() {
-        return $this->getArrayCopy();
+        $this->initialize();
+        return $this->collection;
+    }
+
+    public function getArray(){
+        return $this->collection;
     }
 }
