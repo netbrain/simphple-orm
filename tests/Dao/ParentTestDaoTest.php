@@ -103,8 +103,8 @@ class ParentTestDaoTest extends DaoTestCase{
         $children = $parent->getChildren();
         $this->assertTrue(is_array($children));
         $this->assertEquals(1,count($children));
-        $this->assertFalse($this->childDao->isTransient($children[0]));
-        $this->assertTrue(is_numeric($children[0]->getId()));
+        $this->assertFalse($this->childDao->isTransient(current($children)));
+        $this->assertTrue(is_numeric(current($children)->getId()));
 
     }
 

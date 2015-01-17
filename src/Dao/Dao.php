@@ -172,9 +172,7 @@ abstract class Dao {
                         $this->cast($obj,$element);
                         if(is_array($destination)){
                             $destination[$this->getIdValue($element)] = $element;
-                        }else if($destination instanceof \ArrayObject){
-                            $destination->offsetSet($this->getIdValue($element),$element);
-                        }else {
+                        }else{
                             throw new \RuntimeException("Invalid destination");
                         }
                     }
@@ -247,7 +245,7 @@ abstract class Dao {
                 if (!$entityOrCollection->isInitialized()) {
                     $entityOrCollection->initialize();
                     if($entityOrCollection instanceof CollectionProxy){
-                        $entityOrCollection = $entityOrCollection->getArrayCopy();
+                        $entityOrCollection = $entityOrCollection->getArray();
                     }else if($entityOrCollection instanceof EntityProxy){
                         $entityOrCollection = $entityOrCollection->getDelegate();
                     }
@@ -256,6 +254,7 @@ abstract class Dao {
         }
         return $entityOrCollection;
     }
+
 
     public function isInitialized($entityOrCollection) {
         if(is_array($entityOrCollection)){
@@ -599,7 +598,7 @@ abstract class Dao {
                 }else{
                     return (object) array(
                         Dao::TYPE => get_class($value),
-                        DAO::ID => $this->daoFactory->getDaoFromEntity($value)->getIdValue($value)
+                        Dao::ID => $this->daoFactory->getDaoFromEntity($value)->getIdValue($value)
                     );
                 }
             }
@@ -644,7 +643,10 @@ abstract class Dao {
         $buffer = array();
         foreach ($oldEntityValues as $key => $child){
             unset($oldEntityValues[$key]);
-            $buffer[$child->{DAO::ID}] = $child;
+            if(!($child instanceof stdClass)){
+                $child = $this->getCacheValue($child);
+            }
+            $buffer[$child->{Dao::ID}] = $child;
         }
         $oldEntityValues = $buffer;
 
@@ -656,8 +658,8 @@ abstract class Dao {
         }
 
         foreach ($valuesDeleted as $value){
-            $dao = $this->daoFactory->getDaoFromEntity($value->{DAO::TYPE});
-            $dao->delete($value->{DAO::ID});
+            $dao = $this->daoFactory->getDaoFromEntity($value->{Dao::TYPE});
+            $dao->delete($value->{Dao::ID});
         }
     }
 
