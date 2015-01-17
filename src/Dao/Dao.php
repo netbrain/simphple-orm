@@ -99,7 +99,7 @@ abstract class Dao {
         }else{
             $entities = array();
             while ($obj = $result->fetch_object()) {
-                $entities[] = $this->cast($obj);
+                $entities[$this->getIdValue($obj)] = $this->cast($obj);
             }
             return $entities;
         }
@@ -120,7 +120,7 @@ abstract class Dao {
             throw new \RuntimeException("Result contains more than one row!");
         }
 
-        return $result[0];
+        return current($result);
     }
 
     /**
