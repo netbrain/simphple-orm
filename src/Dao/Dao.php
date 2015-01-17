@@ -171,9 +171,9 @@ abstract class Dao {
                         $element = $this->table->getEntityInstance();
                         $this->cast($obj,$element);
                         if(is_array($destination)){
-                            $destination[] = $element;
+                            $destination[$this->getIdValue($element)] = $element;
                         }else if($destination instanceof \ArrayObject){
-                            $destination->append($element);
+                            $destination->offsetSet($this->getIdValue($element),$element);
                         }else {
                             throw new \RuntimeException("Invalid destination");
                         }
@@ -476,11 +476,19 @@ abstract class Dao {
      */
     private function persistReferences($parent) {
         foreach ($this->getForeignKeyReferences($parent) as $data) {
+            /**
+             * @var $referencedField TableField
+             */
             list($referencedField, $referencedValue) = $data;
             if(is_array($referencedValue)){
-                foreach($referencedValue as $refVal){
+                $assocValues = array();
+                foreach($referencedValue as $key => $refVal){
                     $this->persistReference($parent, $refVal, $referencedField);
+                    $assocValues[$this->getIdValue($refVal,$referencedField->getTable())] = $refVal;
                 }
+
+                $this->table->setPropertyValue($parent,$referencedField,$assocValues);
+
             }else{
                 $this->persistReference($parent, $referencedValue, $referencedField);
             }
